@@ -1,0 +1,42 @@
+# Tagging publishes the prebuilt package: the tarball is what the plugin-market entry installs from,
+# so its asset name stays 'dsh-zhihu.tgz' and 'releases/latest/download/dsh-zhihu.tgz' keeps working.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Check the tag matches the package version
+        run: |
+          version="v$(node -p "require('./package.json').version")"
+          if [ "$version" != "$GITHUB_REF_NAME" ]; then
+            echo "tag $GITHUB_REF_NAME does not match package.json ($version)" >&2
+            exit 1
+          fi
+
+      - name: Pack
+        run: |
+          npm pack --pack-destination dist
+          mv dist/*.tgz dist/dsh-zhihu.tgz
+
+      - name: Publish the tarball to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" dist/dsh-zhihu.tgz --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" dist/dsh-zhihu.tgz --title "$GITHUB_REF_NAME" --notes "Prebuilt package for $GITHUB_REF_NAME."
+          fi
