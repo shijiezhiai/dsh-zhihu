@@ -28,6 +28,7 @@ jobs:
 
       - name: Pack
         run: |
+          mkdir -p dist
           npm pack --pack-destination dist
           mv dist/*.tgz dist/dsh-zhihu.tgz
 
