@@ -1,0 +1,5 @@
+# Single mount row: the package registers the Zhihu service, its provider, the model tools, the
+# authenticated Remote and its browser surface from one entry.
+- insert:
+    - id: zhihu
+      name: '@mayangyang/dsh-zhihu'

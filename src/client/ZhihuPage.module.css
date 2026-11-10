@@ -1,0 +1,93 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  height: 100%;
+  padding: 16px 20px;
+  color: var(--dsw-alias-label-primary);
+  font-size: var(--dsw-font-xs-13);
+}
+
+.header {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 10px;
+}
+
+.title {
+  margin: 0;
+  font-size: var(--dsw-font-md-16);
+  font-weight: 600;
+}
+
+.searchBar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+}
+
+.scroller {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.state {
+  margin: 0;
+  color: var(--dsw-alias-label-secondary);
+}
+
+/* The reason a discussion did not open, which the reader may report back verbatim. */
+.reason {
+  margin: 0;
+  font-family: var(--dsw-font-mono, monospace);
+  font-size: 12px;
+  color: var(--dsw-alias-label-secondary);
+  word-break: break-word;
+}
+
+.failure {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.notice {
+  flex: none;
+  margin: 0;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.footer {
+  margin: 4px 0 0;
+  color: var(--dsw-alias-label-tertiary);
+  text-align: center;
+}
+
+.discussion {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+}
+
+.chips {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.conversation {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
