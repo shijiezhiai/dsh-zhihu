@@ -63,7 +63,8 @@ export function notePath(folder: string, name: string): string {
 
 /**
  * The note text: frontmatter the vault can query, then the body, then the
- * conclusion the reader reached about it.
+ * conclusion the reader reached about it. A capture the provider cut records
+ * `truncated: true` in the frontmatter, so the body stays plain Markdown.
  * @param entry - capture as the Client sent it.
  * @param day - `YYYY-MM-DD` the capture was saved.
  * @returns Markdown written as one request body.
@@ -71,14 +72,15 @@ export function notePath(folder: string, name: string): string {
 export function noteText(entry: ZhihuExportQuery, day: string): string {
   const front = ['---', `title: ${yamlScalar(entry.title)}`, `source: ${yamlScalar(entry.url)}`]
   if (entry.author !== undefined && entry.author !== '') front.push(`author: ${yamlScalar(entry.author)}`)
-  front.push(`kind: ${yamlScalar(entry.kind)}`, `saved: ${yamlScalar(day)}`, '---', '')
+  front.push(`kind: ${yamlScalar(entry.kind)}`, `saved: ${yamlScalar(day)}`)
+  if (entry.truncated) front.push('truncated: true')
+  front.push('---', '')
   const body = entry.body.trim() === '' ? '_This capture carried no body text._' : entry.body.trim()
-  const tail = entry.truncated ? ['', '> Text truncated by the capture limit.'] : []
   const conclusion = entry.discussion
   const discussion = conclusion === undefined || conclusion.text.trim() === ''
     ? []
     : ['', `## ${conclusion.heading}`, '', conclusion.text.trim()]
-  return [...front, body, ...tail, ...discussion].join('\n') + '\n'
+  return [...front, body, ...discussion].join('\n') + '\n'
 }
 
 /**

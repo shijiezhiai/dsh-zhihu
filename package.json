@@ -1,6 +1,6 @@
 {
   "name": "@mayangyang/dsh-zhihu",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Zhihu feeds, reading, search, in-panel discussion and Obsidian capture in one installable plugin",
   "license": "MIT",
   "type": "module",

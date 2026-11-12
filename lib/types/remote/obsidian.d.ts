@@ -34,7 +34,8 @@ export declare function noteName(title: string, id: string): string;
 export declare function notePath(folder: string, name: string): string;
 /**
  * The note text: frontmatter the vault can query, then the body, then the
- * conclusion the reader reached about it.
+ * conclusion the reader reached about it. A capture the provider cut records
+ * `truncated: true` in the frontmatter, so the body stays plain Markdown.
  * @param entry - capture as the Client sent it.
  * @param day - `YYYY-MM-DD` the capture was saved.
  * @returns Markdown written as one request body.
