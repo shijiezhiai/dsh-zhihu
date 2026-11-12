@@ -17,6 +17,16 @@ export interface ZhihuPageLane {
     rows: readonly ZhihuFeedRow[];
     cursor: string;
 }
+/** How one row moved when its lane was read, measured against that lane's previous read. */
+export type ZhihuRankMove = {
+    readonly kind: 'new';
+} | {
+    readonly kind: 'up';
+    readonly places: number;
+} | {
+    readonly kind: 'down';
+    readonly places: number;
+};
 /** The page's persisted state. */
 export interface ZhihuPageState {
     /** The lane on screen. */
@@ -30,10 +40,17 @@ export interface ZhihuPageState {
     /** Vertical offset of the list, so a reopened page resumes where the reader left it. */
     scrollTop: number;
     /**
-     * The Session each row's discussion runs in, keyed by {@link zhihuDiscussionKey}.
+     * The Session each row's discussion runs in, keyed by {@link zhihuRowKey}.
      * A state persisted before discussions existed restores without the field, so readers default it.
      */
     discussions?: Record<string, string>;
+    /**
+     * How each row moved in the latest read of its lane, keyed by lane and then by {@link zhihuRowKey}.
+     * Only a row that was new, climbed or fell carries an entry, so the field stays small and the
+     * list marks nothing for a row that held its place or a lane read for the first time.
+     * A state persisted before rank tracking existed restores without the field, so readers default it.
+     */
+    moves?: Partial<Record<ZhihuFeedTab, Readonly<Record<string, ZhihuRankMove>>>>;
 }
 /** The page store's write set. A type alias, not an interface, so it satisfies `ActionsDecl`'s index signature. */
 export type ZhihuPageActions = {

@@ -189,6 +189,9 @@ export default class ZhihuController extends TypertRemoteService {
         throw new RemoteError('gateway/bad-request', `${field} must not be empty`, {})
       }
     }
+    if (request.discussion !== undefined && request.discussion.heading.trim().length === 0) {
+      throw new RemoteError('gateway/bad-request', 'discussion.heading must not be empty', {})
+    }
     return request
   }
 

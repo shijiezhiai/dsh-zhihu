@@ -62,7 +62,8 @@ export function notePath(folder: string, name: string): string {
 }
 
 /**
- * The note text: frontmatter the vault can query, then the body.
+ * The note text: frontmatter the vault can query, then the body, then the
+ * conclusion the reader reached about it.
  * @param entry - capture as the Client sent it.
  * @param day - `YYYY-MM-DD` the capture was saved.
  * @returns Markdown written as one request body.
@@ -73,7 +74,11 @@ export function noteText(entry: ZhihuExportQuery, day: string): string {
   front.push(`kind: ${yamlScalar(entry.kind)}`, `saved: ${yamlScalar(day)}`, '---', '')
   const body = entry.body.trim() === '' ? '_This capture carried no body text._' : entry.body.trim()
   const tail = entry.truncated ? ['', '> Text truncated by the capture limit.'] : []
-  return [...front, body, ...tail].join('\n') + '\n'
+  const conclusion = entry.discussion
+  const discussion = conclusion === undefined || conclusion.text.trim() === ''
+    ? []
+    : ['', `## ${conclusion.heading}`, '', conclusion.text.trim()]
+  return [...front, body, ...tail, ...discussion].join('\n') + '\n'
 }
 
 /**

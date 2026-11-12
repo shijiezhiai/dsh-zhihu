@@ -1,7 +1,7 @@
 {
   "name": "@mayangyang/dsh-zhihu",
-  "version": "1.0.1",
-  "description": "Zhihu feeds, reading, search, an in-panel discussion and Obsidian capture inside DeepSeek Harness.",
+  "version": "1.1.0",
+  "description": "Zhihu feeds, reading, search, in-panel discussion and Obsidian capture in one installable plugin",
   "license": "MIT",
   "type": "module",
   "main": "lib/index.js",
@@ -96,17 +96,5 @@
         "@deepseek-ai/dsh-api-session-controller"
       ]
     }
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/shijiezhiai/dsh-zhihu.git"
-  },
-  "homepage": "https://github.com/shijiezhiai/dsh-zhihu",
-  "keywords": [
-    "dsh",
-    "dsh-plugin",
-    "deepseek-harness",
-    "zhihu"
-  ],
-  "private": false
+  }
 }

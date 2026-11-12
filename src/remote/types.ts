@@ -121,6 +121,14 @@ export interface ZhihuReadItem {
   /** Canonical provider URL of the read content. */
   readonly url: string
 }
+/** The conversation a capture carries into its note. */
+export interface ZhihuExportDiscussion {
+  /** Heading of the section, in the reader's copy. */
+  readonly heading: string
+  /** The answer the conversation ended on, as Markdown. */
+  readonly text: string
+}
+
 /** One capture the browser asks the Host to file into the Obsidian vault. */
 export interface ZhihuExportQuery {
   /** Content kind the capture carries. */
@@ -137,6 +145,8 @@ export interface ZhihuExportQuery {
   readonly body: string
   /** True when the body was cut at the provider's character cap. */
   readonly truncated: boolean
+  /** Conclusion to file under the body; omitted when the reader discussed nothing. */
+  readonly discussion?: ZhihuExportDiscussion
 }
 
 /** Where a filed capture landed. */

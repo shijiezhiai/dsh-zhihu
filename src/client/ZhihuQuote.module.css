@@ -1,0 +1,62 @@
+/* The passage bubble: a card floating over the reader, placed in viewport pixels
+ * by zhihu-quote.ts so it never leaves the window. */
+.quote {
+  position: fixed;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  box-sizing: border-box;
+  width: 340px;
+  padding: 10px 12px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: var(--dsw-radius-lg);
+  background: var(--dsw-alias-bg-layer-2);
+  box-shadow: var(--dsw-shadow-lv3);
+  color: var(--dsw-alias-label-primary);
+  font-size: var(--dsw-font-xs-13);
+}
+
+/* The quoted text is a preview: the instruction carries all of it. */
+.passage {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  color: var(--dsw-alias-label-secondary);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+/* How many blocks went into the quote, once pointing at one block was not enough. */
+.count {
+  margin: 0;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.quick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.compose {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+/* A question can outgrow one line: the field wraps, and scrolls past four lines. */
+.field {
+  flex: 1;
+  min-width: 0;
+  max-height: 88px;
+  box-sizing: border-box;
+  padding: 5px 8px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: var(--dsw-radius-md);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  line-height: 1.4;
+  resize: none;
+}

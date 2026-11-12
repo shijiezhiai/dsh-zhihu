@@ -63,6 +63,7 @@ export declare function zhihuPanelInject(face: (actions: BoundActions<ZhihuPanel
 /**
  * Build the panel body's injected face.
  * @param resolveRemote - reads the Zhihu Remote namespace, or undefined while the Host does not publish it.
+ * @param ask - sends the row's discussion draft and reports what happened to it.
  * @returns the face the `sidebar.right.pane.tab` registration exposes.
  */
 export declare function zhihuPanelFace(resolveRemote: () => ClientRemote['zhihu'] | undefined, ask: (row: ZhihuFeedRow, item: ZhihuReadItem | undefined) => Promise<ZhihuAskOutcome>): (actions: BoundActions<ZhihuPanelStore>) => ZhihuPanelInjected;

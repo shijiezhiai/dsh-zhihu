@@ -16,6 +16,9 @@ export declare const en: {
     'list.countOne': string;
     'list.truncated': string;
     'list.empty': string;
+    'rank.new': string;
+    'rank.up': string;
+    'rank.down': string;
     'read.body': string;
     'read.bodyEmpty': string;
     'read.noBody': string;
@@ -58,6 +61,7 @@ export declare const en: {
     'menu.export': string;
     'notice.copied': string;
     'notice.copyFailed': string;
+    'export.discussion': string;
     'notice.exporting': string;
     'notice.exported': string;
     'notice.exportFailed': string;
@@ -75,7 +79,14 @@ export declare const en: {
     'discussion.reused': string;
     'discussion.opening': string;
     'discussion.failed': string;
+    'discussion.seconds': string;
+    'discussion.stalled': string;
     'discussion.prompt': string;
+    'quote.action': string;
+    'quote.placeholder': string;
+    'quote.send': string;
+    'quote.segments': string;
+    'quote.quoted': string;
     'ask.action': string;
     'ask.copied': string;
     'ask.drafted': string;

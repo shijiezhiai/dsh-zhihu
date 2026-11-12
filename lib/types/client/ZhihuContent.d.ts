@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import type { RemoteFailure } from '@deepseek-ai/dsh-api-remotes/client';
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
 import type { ZhihuFeedRow, ZhihuReadItem } from '@deepseek-ai/dsh-zhihu-plugin/types';
+import type { ZhihuRankMove } from './zhihu-page-store.ts';
 /** Copy handle of the Zhihu namespace. */
 export type ZhihuTranslate = PropsLocale<'zhihu'>['t'];
 /**
@@ -33,12 +34,14 @@ export type ZhihuOpenedRow<R extends ZhihuFeedRow = ZhihuFeedRow> = {
  * @param props.rows - rows of the current page, in feed order.
  * @param props.t - copy of the Zhihu namespace.
  * @param props.onOpen - called with the row a reader picks.
+ * @param props.moves - the marks the lane's latest read left; omitted where nothing ranks a lane.
  * @returns the notice, an empty state, or the row list.
  */
-export declare function ZhihuRowList({ rows, t, onOpen }: {
+export declare function ZhihuRowList({ rows, t, onOpen, moves }: {
     readonly rows: readonly ZhihuFeedRow[];
     readonly t: ZhihuTranslate;
     readonly onOpen: (row: ZhihuFeedRow) => void;
+    readonly moves?: Readonly<Record<string, ZhihuRankMove>> | undefined;
 }): ReactNode;
 /**
  * Render one opened row: its title, body, author line, and the refusal path.

@@ -16,12 +16,14 @@ import { copyZhihuText } from './zhihu-clipboard.ts'
 import type { ZhihuDetailAction, ZhihuDetailRegistry } from './zhihu-detail.ts'
 import {
   DISCUSSION_PANEL_TIMEOUT_MS,
-  zhihuDiscussionKey,
   zhihuDiscussionPrompt,
   type ZhihuDiscussion,
   type ZhihuDiscussionSeat,
 } from './zhihu-discussion.ts'
+import { zhihuRowKey } from './zhihu-row-key.ts'
 import { zhihuPanelFailureLine } from './zhihu-panel-failure.ts'
+import { readPassage, segmentsText, toggleSegment, zhihuQuotedInstruction, type ZhihuPassage } from './zhihu-quote.ts'
+import { ZhihuQuoteBox } from './ZhihuQuote.tsx'
 import type { ZhihuPageFace } from './zhihu-page-face.ts'
 import type { ZhihuFeedTab, ZhihuPageStore, ZhihuPageTab } from './zhihu-page-store.ts'
 import { ZhihuOpenedContent, ZhihuRowList, type ZhihuOpenedRow, type ZhihuTranslate } from './ZhihuContent.tsx'
@@ -33,7 +35,7 @@ type FeedTab = ZhihuFeedTab
 /** The page's lanes, recommended first. */
 type PageTab = ZhihuPageTab
 
-const TABS: readonly PageTab[] = ['recommend', 'hot', 'follow', 'search']
+const LANES: readonly PageTab[] = ['recommend', 'hot', 'follow', 'search']
 
 /** Where the context menu opens, in viewport pixels. */
 interface MenuAt {
@@ -42,6 +44,12 @@ interface MenuAt {
 }
 
 /** The two surfaces of an open row: its body, and the conversation about it. */
+/** The passage quoted for the reader, and the blocks it was merged from. */
+interface ZhihuQuote extends ZhihuPassage {
+  /** The blocks the reader pointed at, in the order they were named. */
+  readonly segments: readonly string[]
+}
+
 type DetailSurface = 'body' | 'discussion'
 
 const SURFACES: readonly DetailSurface[] = ['body', 'discussion']
@@ -110,10 +118,11 @@ type LanePhase =
 /**
  * What the pane says when its own clock gives up on a pending discussion.
  * @param seat - the seat whose latest step names where the wait stopped.
+ * @param t - the page's translator.
  * @returns the line shown under the failure.
  */
-function stallLine(seat: ZhihuDiscussionSeat): string {
-  return 'the discussion did not open within ' + String(DISCUSSION_PANEL_TIMEOUT_MS) + ' ms (stopped at: ' + seat.stage() + ')'
+function stallLine(seat: ZhihuDiscussionSeat, t: ZhihuTranslate): string {
+  return t('discussion.stalled', { ms: DISCUSSION_PANEL_TIMEOUT_MS, stage: seat.stage() })
 }
 
 /**
@@ -327,11 +336,15 @@ export function ZhihuPage(
   const [notice, setNotice] = useState<string | undefined>(undefined)
   const [menu, setMenu] = useState<MenuAt | undefined>(undefined)
   const [surface, setSurface] = useState<DetailSurface>('body')
+  /** The passage the reader pointed at, while its bubble is up. */
+  const [quote, setQuote] = useState<ZhihuQuote | undefined>(undefined)
   const [chat, setChat] = useState<{ status: 'idle' | 'opening' | 'ready' | 'failed'; seat?: ZhihuDiscussion; reason?: string }>({ status: 'idle' })
   /** Whole seconds the pane has been waiting, so a stall is visible instead of static. */
   const [waited, setWaited] = useState(0)
   // A state persisted before discussions existed restores without them, so a row simply has none.
   const discussions = useStore(state => state.discussions)
+  // A state persisted before rank tracking existed restores without it, so the list marks nothing.
+  const moves = useStore(state => state.moves)
   /** The discussion this panel holds a reference to; the Session outlives it. */
   const held = useRef<ZhihuDiscussion | null>(null)
   /** Latest open, so an answer for a row the reader left writes nothing. */
@@ -433,6 +446,7 @@ export function ZhihuPage(
     setMenu(undefined)
     setOpened(null)
     setSurface('body')
+    setQuote(undefined)
     setChat({ status: 'idle' })
     release()
   }, [release])
@@ -455,32 +469,70 @@ export function ZhihuPage(
    * Show the conversation about the open row, resuming the Session a previous
    * visit retained or creating the one it runs in.
    */
-  const discuss = useCallback((row: ZhihuFeedRow) => {
-    const key = zhihuDiscussionKey(row)
+  const discuss = useCallback(async (row: ZhihuFeedRow): Promise<ZhihuDiscussion | undefined> => {
+    const key = zhihuRowKey(row)
     const known = discussions?.[key]
     setNotice(undefined)
     setSurface('discussion')
     setChat({ status: 'opening' })
     try {
-      void discussion.open(row, known).then((next) => {
-        release()
-        held.current = next
-        if (known === undefined) actions.remember(key, next.reference.sessionId)
-        setChat({ status: 'ready', seat: next })
-      }, (reason: unknown) => { setChat({ status: 'failed', reason: String(reason) }) })
+      const next = await discussion.open(row, known)
+      release()
+      held.current = next
+      if (known === undefined) actions.remember(key, next.reference.sessionId)
+      setChat({ status: 'ready', seat: next })
+      return next
     } catch (error) {
       // A seat that throws on the call itself would otherwise leave the pane waiting forever.
       setChat({ status: 'failed', reason: String(error) })
+      return undefined
     }
   }, [actions, discussion, discussions, release])
 
   /** Send one instruction into the open discussion. */
-  const instruct = (seat: ZhihuDiscussion, row: ZhihuFeedRow, instruction: string): void => {
+  const instruct = useCallback((seat: ZhihuDiscussion, row: ZhihuFeedRow, instruction: string): void => {
     setNotice(undefined)
     void seat.send(zhihuDiscussionPrompt(t, row, instruction)).then((accepted) => {
       if (!accepted) setNotice(t('discussion.failed'))
     }, () => { setNotice(t('discussion.failed')) })
-  }
+  }, [t])
+
+  /**
+   * Ask about one passage, in the discussion this row already has or the one it opens now.
+   * @param row - the row the passage came from.
+   * @param text - the passage the reader pointed at.
+   * @param instruction - what the reader asked about it.
+   */
+  const askPassage = useCallback(async (row: ZhihuFeedRow, text: string, instruction: string): Promise<void> => {
+    setQuote(undefined)
+    setSurface('discussion')
+    const seat = chat.status === 'ready' && chat.seat !== undefined ? chat.seat : await discuss(row)
+    if (seat === undefined) return
+    instruct(seat, row, zhihuQuotedInstruction(t, text, instruction))
+  }, [chat, discuss, instruct, t])
+
+  /**
+   * The conclusion the open row's discussion reached, for the note the reader files.
+   * @returns the section to file under the body, or undefined while no answer settled.
+   */
+  const conclusion = useCallback((): { heading: string; text: string } | undefined => {
+    const text = chat.status === 'ready' ? chat.seat?.latest() : undefined
+    return text === undefined ? undefined : { heading: t('export.discussion'), text }
+  }, [chat, t])
+
+  /**
+   * Quote the block the reader pointed at, or take it back when the quote already carries it.
+   * @param target - the element the gesture landed on.
+   */
+  const quoteAt = useCallback((target: EventTarget | null): void => {
+    const next = readPassage(target)
+    if (next === undefined) return
+    setQuote((current) => {
+      const segments = toggleSegment(current?.segments ?? [], next.text)
+      if (segments.length === 0) return undefined
+      return { segments, text: segmentsText(segments), left: next.left, top: next.top }
+    })
+  }, [])
 
   // Built only while a row is open, so the menu and the shortcut handle always act on that row.
   const runAction = useMemo(() => {
@@ -499,13 +551,14 @@ export function ZhihuPage(
           setNotice(item !== undefined && copyZhihuText(readableBody(item)) ? t('notice.copied') : t('notice.copyFailed'))
           return
         case 'ask':
-          discuss(row)
+          void discuss(row)
           return
         case 'openOriginal':
           window.open(row.url, '_blank', 'noopener')
           return
         case 'export': {
           const title = item !== undefined && item.title !== '' ? item.title : row.title
+          const filed = conclusion()
           setNotice(t('notice.exporting'))
           void face.export({
             kind: row.kind,
@@ -515,6 +568,7 @@ export function ZhihuPage(
             body: readableBody(item),
             truncated: item?.contentTruncated ?? false,
             ...(item === undefined || item.author === '' ? {} : { author: item.author }),
+            ...(filed === undefined ? {} : { discussion: filed }),
           }).then((result) => {
             const line = result.ok ? t('notice.exported', { path: result.value.path }) : t('notice.exportFailed')
             setNotice(line)
@@ -531,7 +585,7 @@ export function ZhihuPage(
           return
       }
     }
-  }, [close, discuss, face, opened, report, t])
+  }, [close, conclusion, discuss, face, opened, report, t])
 
   // While a row is open its actions are this page's; the shortcut commands run through the same handle.
   useEffect(() => (runAction === undefined ? undefined : details.attach({ run: runAction })), [details, runAction])
@@ -546,6 +600,36 @@ export function ZhihuPage(
     document.addEventListener('keydown', onKeyDown)
     return () => { document.removeEventListener('keydown', onKeyDown) }
   }, [close, opened])
+
+  // The bubble is placed from where the reader pointed, so it goes away once that moves.
+  useEffect(() => {
+    if (quote === undefined) return undefined
+    const dismiss = (): void => { setQuote(undefined) }
+    const onPointerDown = (event: PointerEvent): void => {
+      // The bubble and the body it quotes are the quote's own surfaces: a click there names a block.
+      if (event.target instanceof Element && event.target.closest('[data-zhihu-passage], [data-zhihu-body]') !== null) return
+      dismiss()
+    }
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key !== 'Escape') return
+      // The passage is the nearer surface: Escape gives it up before it closes the row.
+      event.stopPropagation()
+      dismiss()
+    }
+    const onScroll = (event: Event): void => {
+      // A scroller inside the bubble is the bubble growing its own text, not the page moving under it.
+      if (event.target instanceof Element && event.target.closest('[data-zhihu-passage]') !== null) return
+      dismiss()
+    }
+    document.addEventListener('pointerdown', onPointerDown)
+    document.addEventListener('keydown', onKeyDown, true)
+    window.addEventListener('scroll', onScroll, true)
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown)
+      document.removeEventListener('keydown', onKeyDown, true)
+      window.removeEventListener('scroll', onScroll, true)
+    }
+  }, [quote])
 
   if (opened !== null) {
     const menuRect = menu === undefined ? null : new DOMRect(menu.x, menu.y, 0, 0)
@@ -566,7 +650,7 @@ export function ZhihuPage(
             value={surface}
             options={SURFACES.map(value => ({ value, label: t(SURFACE_KEYS[value]) }))}
             onChange={(next) => {
-              if (next === 'discussion') discuss(opened.row)
+              if (next === 'discussion') void discuss(opened.row)
               else setSurface('body')
             }}
             label={t('discussion.surfaces')}
@@ -575,20 +659,28 @@ export function ZhihuPage(
         {notice !== undefined && <p className={css.notice} role="status">{notice}</p>}
         {surface === 'body'
           ? (
-            <div className={css.scroller}>
+            <div
+              className={css.scroller}
+              data-zhihu-body=""
+              onMouseUp={(event) => { quoteAt(event.target) }}
+              onKeyUp={(event) => {
+                // A selection made with the keyboard raises no mouse gesture.
+                if (event.shiftKey) quoteAt(event.target)
+              }}
+            >
               <ZhihuOpenedContent state={opened} t={t} onRetry={() => { read(opened.row) }} />
             </div>
           )
           : (
             <div className={css.discussion}>
               {chat.status === 'opening' && !stalled && (
-                <p className={css.state}>{t('discussion.opening')}{waited > 0 ? ' ' + String(Math.floor(waited / 1000)) + 's' : ''}</p>
+                <p className={css.state}>{t('discussion.opening')}{waited > 0 ? ' ' + t('discussion.seconds', { seconds: Math.floor(waited / 1000) }) : ''}</p>
               )}
               {(chat.status === 'failed' || stalled) && (
                 <>
                   <p className={css.state}>{t('discussion.failed')}</p>
-                  <p className={css.reason}>{chat.reason ?? stallLine(discussion)}</p>
-                  <Button variant="outline" size="sm" onClick={() => { discuss(opened.row) }}>{t('panel.retry')}</Button>
+                  <p className={css.reason}>{chat.reason ?? stallLine(discussion, t)}</p>
+                  <Button variant="outline" size="sm" onClick={() => { void discuss(opened.row) }}>{t('panel.retry')}</Button>
                 </>
               )}
               {seat !== undefined && (
@@ -606,6 +698,14 @@ export function ZhihuPage(
               )}
             </div>
           )}
+        {quote !== undefined && (
+          <ZhihuQuoteBox
+            passage={quote}
+            count={quote.segments.length}
+            t={t}
+            onAsk={(instruction) => { void askPassage(opened.row, quote.text, instruction) }}
+          />
+        )}
         <Menu
           open={menu !== undefined}
           portal
@@ -622,7 +722,7 @@ export function ZhihuPage(
     )
   }
 
-  const options: readonly SegmentedControlOption<PageTab>[] = TABS.map(kind => ({
+  const options: readonly SegmentedControlOption<PageTab>[] = LANES.map(kind => ({
     value: kind,
     label: t(TAB_KEYS[kind]),
   }))
@@ -682,7 +782,9 @@ export function ZhihuPage(
             </Button>
           </div>
         )}
-        {page.status === 'ready' && <ZhihuRowList rows={rows} t={t} onOpen={read} />}
+        {page.status === 'ready' && (
+          <ZhihuRowList rows={rows} t={t} onOpen={read} moves={tab === 'search' ? undefined : moves?.[tab]} />
+        )}
         {page.status === 'ready' && rows.length > 0 && (
           <p className={css.footer}>
             {lane.appending

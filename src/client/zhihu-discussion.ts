@@ -6,7 +6,7 @@
  * panel: the page only keeps a reference while the segment is on screen and
  * remembers the identity it retained.
  */
-import type { ISessions, SessionReference } from '@deepseek-ai/dsh-api-session-controller/client'
+import type { ISessions, SessionEventSource, SessionReference } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { ZhihuFeedRow } from '@deepseek-ai/dsh-zhihu-plugin/types'
 import type { ZhihuTranslate } from './ZhihuContent.tsx'
@@ -24,15 +24,6 @@ const KIND_KEYS = {
   article: 'kind.article',
   question: 'kind.question',
 } as const
-
-/**
- * The identity one row's discussion is remembered under.
- * @param row - the row the reader has open.
- * @returns a key stable across page reloads.
- */
-export function zhihuDiscussionKey(row: ZhihuFeedRow): string {
-  return `${row.kind}:${row.id}`
-}
 
 /**
  * Compose the instruction that opens or continues a discussion.
@@ -67,6 +58,11 @@ export interface ZhihuDiscussion {
    * @returns whether the Host accepted it.
    */
   send(text: string): Promise<boolean>
+  /**
+   * The newest answer the discussion produced, for a note that files it.
+   * @returns the answer's text, or undefined while none has settled.
+   */
+  latest(): string | undefined
   /** Drop this panel's reference; the Session and its transcript stay. */
   release(): void
 }
@@ -117,6 +113,24 @@ function within<T>(work: Promise<T>, ms: number): Promise<T> {
   })
 }
 
+/**
+ * The text of the newest settled assistant message in a Session's event window.
+ * @param source - the Session's contiguous event window.
+ * @returns the answer's text, or undefined while no message carried any.
+ */
+function latestAnswer(source: SessionEventSource): string | undefined {
+  for (const entry of [...source.getSnapshot().entries].reverse()) {
+    // A live chunk is the same message before settlement, and carries no blocks yet.
+    if (entry.type !== 'event' || entry.event.type !== 'assistant/message') continue
+    const text = entry.event.data.message.content
+      .flatMap(block => (block.type === 'text' ? [block.text] : []))
+      .join('\n')
+      .trim()
+    if (text !== '') return text
+  }
+  return undefined
+}
+
 /** What the seat needs from the Session catalog. */
 export type ZhihuDiscussionSessions = Pick<ISessions, 'create' | 'list' | 'retain'>
 
@@ -162,6 +176,7 @@ export function createZhihuDiscussionSeat(sessions: ZhihuDiscussionSessions): Zh
         reference,
         reused,
         send: async text => (await reference.binding.session.prompt([{ type: 'text', text }], 'queue')).ok,
+        latest: () => latestAnswer(reference.binding.eventSource),
         release: () => { reference.release() },
       }
     },

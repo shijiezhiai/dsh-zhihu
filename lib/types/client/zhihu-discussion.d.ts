@@ -16,12 +16,6 @@ declare module '@deepseek-ai/dsh-api-session-controller/client' {
     }
 }
 /**
- * The identity one row's discussion is remembered under.
- * @param row - the row the reader has open.
- * @returns a key stable across page reloads.
- */
-export declare function zhihuDiscussionKey(row: ZhihuFeedRow): string;
-/**
  * Compose the instruction that opens or continues a discussion.
  *
  * The model reads the body itself, so the message carries the identity the
@@ -44,6 +38,11 @@ export interface ZhihuDiscussion {
      * @returns whether the Host accepted it.
      */
     send(text: string): Promise<boolean>;
+    /**
+     * The newest answer the discussion produced, for a note that files it.
+     * @returns the answer's text, or undefined while none has settled.
+     */
+    latest(): string | undefined;
     /** Drop this panel's reference; the Session and its transcript stay. */
     release(): void;
 }

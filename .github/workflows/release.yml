@@ -17,6 +17,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.28.5
 
       - name: Check the tag matches the package version
         run: |
@@ -41,3 +44,16 @@ jobs:
           else
             gh release create "$GITHUB_REF_NAME" dist/dsh-zhihu.tgz --title "$GITHUB_REF_NAME" --notes "Prebuilt package for $GITHUB_REF_NAME."
           fi
+
+      # The catalog installs a pinned URL, so a release is not done until that exact URL installs into
+      # a profile and the profile composes.
+      - name: Install the published tarball into a throwaway profile
+        run: |
+          npm install --global @deepseek-ai/dsh@0.2.2-rc.1
+          export DSH_HOME="$RUNNER_TEMP/dsh-home"
+          url="https://github.com/$GITHUB_REPOSITORY/releases/download/$GITHUB_REF_NAME/dsh-zhihu.tgz"
+          dsh plugin --profile smoke add "$url"
+          installed="$(node -p "require(process.env.DSH_HOME + '/profiles/smoke/node_modules/@mayangyang/dsh-zhihu/package.json').version")"
+          test "v$installed" = "$GITHUB_REF_NAME"
+          dsh --profile smoke --dump-config > "$RUNNER_TEMP/smoke.yml"
+          grep -q 'dsh-zhihu' "$RUNNER_TEMP/smoke.yml"
