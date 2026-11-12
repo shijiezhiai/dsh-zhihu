@@ -62,6 +62,8 @@ export declare const en: {
     'notice.copied': string;
     'notice.copyFailed': string;
     'export.discussion': string;
+    'export.question': string;
+    'export.answer': string;
     'notice.exporting': string;
     'notice.exported': string;
     'notice.exportFailed': string;

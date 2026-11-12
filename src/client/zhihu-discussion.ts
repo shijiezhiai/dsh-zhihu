@@ -59,10 +59,10 @@ export interface ZhihuDiscussion {
    */
   send(text: string): Promise<boolean>
   /**
-   * The newest answer the discussion produced, for a note that files it.
-   * @returns the answer's text, or undefined while none has settled.
+   * The exchange so far, for a note that files it.
+   * @returns every settled turn in order, empty while none has settled.
    */
-  latest(): string | undefined
+  transcript(): readonly ZhihuDiscussionTurn[]
   /** Drop this panel's reference; the Session and its transcript stay. */
   release(): void
 }
@@ -113,22 +113,49 @@ function within<T>(work: Promise<T>, ms: number): Promise<T> {
   })
 }
 
+/** One turn of a discussion, as a note files it. */
+export interface ZhihuDiscussionTurn {
+  /** Who said it: the reader's instruction, or the model's answer. */
+  readonly role: 'user' | 'assistant'
+  /** The turn's text blocks, joined; reasoning and tool calls stay out. */
+  readonly text: string
+}
+
 /**
- * The text of the newest settled assistant message in a Session's event window.
- * @param source - the Session's contiguous event window.
- * @returns the answer's text, or undefined while no message carried any.
+ * The text blocks of one message, trimmed; reasoning and tool calls carry none.
+ * @param blocks - the message's content blocks.
+ * @returns the text the message said, empty when it only acted.
  */
-function latestAnswer(source: SessionEventSource): string | undefined {
-  for (const entry of [...source.getSnapshot().entries].reverse()) {
-    // A live chunk is the same message before settlement, and carries no blocks yet.
-    if (entry.type !== 'event' || entry.event.type !== 'assistant/message') continue
-    const text = entry.event.data.message.content
-      .flatMap(block => (block.type === 'text' ? [block.text] : []))
-      .join('\n')
-      .trim()
-    if (text !== '') return text
+function textOf(blocks: readonly { readonly type: string; readonly text?: string }[]): string {
+  return blocks
+    .flatMap(block => (block.type === 'text' && block.text !== undefined ? [block.text] : []))
+    .join('\n')
+    .trim()
+}
+
+/**
+ * The settled turns of a Session's event window.
+ * @param source - the Session's contiguous event window.
+ * @returns each turn in order, dropping messages that carry no text.
+ */
+function transcriptOf(source: SessionEventSource): readonly ZhihuDiscussionTurn[] {
+  const turns: ZhihuDiscussionTurn[] = []
+  for (const entry of source.getSnapshot().entries) {
+    if (entry.type !== 'event') continue
+    const event = entry.event
+    if (event.type === 'user/message') {
+      // Instructions, skills and runtime context reach the Session as user messages too,
+      // and only the one the reader typed belongs in their note.
+      if (event.data.source.kind !== 'user') continue
+      const text = textOf(event.data.content)
+      if (text !== '') turns.push({ role: 'user', text })
+      continue
+    }
+    if (event.type !== 'assistant/message') continue
+    const text = textOf(event.data.message.content)
+    if (text !== '') turns.push({ role: 'assistant', text })
   }
-  return undefined
+  return turns
 }
 
 /** What the seat needs from the Session catalog. */
@@ -176,7 +203,7 @@ export function createZhihuDiscussionSeat(sessions: ZhihuDiscussionSessions): Zh
         reference,
         reused,
         send: async text => (await reference.binding.session.prompt([{ type: 'text', text }], 'queue')).ok,
-        latest: () => latestAnswer(reference.binding.eventSource),
+        transcript: () => transcriptOf(reference.binding.eventSource),
         release: () => { reference.release() },
       }
     },

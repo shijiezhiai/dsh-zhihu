@@ -39,10 +39,10 @@ export interface ZhihuDiscussion {
      */
     send(text: string): Promise<boolean>;
     /**
-     * The newest answer the discussion produced, for a note that files it.
-     * @returns the answer's text, or undefined while none has settled.
+     * The exchange so far, for a note that files it.
+     * @returns every settled turn in order, empty while none has settled.
      */
-    latest(): string | undefined;
+    transcript(): readonly ZhihuDiscussionTurn[];
     /** Drop this panel's reference; the Session and its transcript stay. */
     release(): void;
 }
@@ -70,6 +70,13 @@ export interface ZhihuDiscussionSeat {
 export declare const DISCUSSION_OPEN_TIMEOUT_MS = 4000;
 /** How long the pane shows a pending discussion before it reports the stall as a failure. */
 export declare const DISCUSSION_PANEL_TIMEOUT_MS = 6000;
+/** One turn of a discussion, as a note files it. */
+export interface ZhihuDiscussionTurn {
+    /** Who said it: the reader's instruction, or the model's answer. */
+    readonly role: 'user' | 'assistant';
+    /** The turn's text blocks, joined; reasoning and tool calls stay out. */
+    readonly text: string;
+}
 /** What the seat needs from the Session catalog. */
 export type ZhihuDiscussionSessions = Pick<ISessions, 'create' | 'list' | 'retain'>;
 /**

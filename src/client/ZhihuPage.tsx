@@ -512,12 +512,16 @@ export function ZhihuPage(
   }, [chat, discuss, instruct, t])
 
   /**
-   * The conclusion the open row's discussion reached, for the note the reader files.
-   * @returns the section to file under the body, or undefined while no answer settled.
+   * The discussion the open row holds, for the note the reader files.
+   * @returns the section to file under the body, or undefined while no turn settled.
    */
   const conclusion = useCallback((): { heading: string; text: string } | undefined => {
-    const text = chat.status === 'ready' ? chat.seat?.latest() : undefined
-    return text === undefined ? undefined : { heading: t('export.discussion'), text }
+    const turns = chat.status === 'ready' ? chat.seat?.transcript() ?? [] : []
+    if (turns.length === 0) return undefined
+    const text = turns
+      .map(turn => `${turn.role === 'user' ? t('export.question') : t('export.answer')}\n\n${turn.text}`)
+      .join('\n\n')
+    return { heading: t('export.discussion'), text }
   }, [chat, t])
 
   /**

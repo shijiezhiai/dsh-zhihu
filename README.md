@@ -66,7 +66,7 @@ Every setting has a default and is validated at load:
 | `remote.obsidianFolder` | `zhihu` | Vault folder that notes land in |
 | `remote.obsidianCredential` | `OBSIDIAN_API_KEY` | Credential ref holding the Obsidian key |
 
-What the reader gets: lanes for hot, recommendation, follow and search that page as you scroll and restore the lane you left, with the rows that are new, climbed or fell since that lane was last read marked beside them; a reader with right-click copy, and an export that files the discussion's last answer under the note body and records a body the capture limit cut as frontmatter rather than a line in the note; a passage bubble that merges several blocks into one quote; and a Discussion segment that keeps one Session per item.
+What the reader gets: lanes for hot, recommendation, follow and search that page as you scroll and restore the lane you left, with the rows that are new, climbed or fell since that lane was last read marked beside them; a reader with right-click copy, and an export that files the item's whole discussion, question and answer in turn, under the note body and records a body the capture limit cut as frontmatter rather than a line in the note; a passage bubble that merges several blocks into one quote; and a Discussion segment that keeps one Session per item.
 
 -----
 
