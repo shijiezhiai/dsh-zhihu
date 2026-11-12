@@ -1,8 +1,6 @@
 # Changelog
 
-Every tag publishes the prebuilt tarball the plugin-market entry installs:
-`https://github.com/shijiezhiai/dsh-zhihu/releases/download/v<version>/dsh-zhihu.tgz`.
-The asset name stays `dsh-zhihu.tgz`, so a version is identified by its URL.
+Every tag publishes the prebuilt tarball the plugin-market entry installs, at `https://github.com/shijiezhiai/dsh-zhihu/releases/download/v<version>/dsh-zhihu.tgz`; the asset name stays `dsh-zhihu.tgz`, so a version is identified by its URL.
 
 ## 1.1.0
 
