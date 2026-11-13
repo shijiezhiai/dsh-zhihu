@@ -190,6 +190,7 @@ function renderBlock(element: Element): string {
     case 'ul': return renderList(element, false)
     case 'ol': return renderList(element, true)
     case 'figure': return renderFigure(element)
+    case 'table': return renderTable(element)
     default: return renderBlocks(element.children).trim()
   }
 }
@@ -361,6 +362,63 @@ function renderFigure(element: Element): string {
   }
   if (blocks.length > 0) return blocks.join(BLANK_LINE)
   return caption
+}
+
+/**
+ * Render one table as a pipe table.
+ *
+ * Zhihu marks its header cells with `th` inside a plain `tbody`, so the first row is the header
+ * whether or not the markup says so: a pipe table cannot exist without one.
+ * @param element - the `table` element to render.
+ * @returns the pipe table, or an empty string when the table carries no cells.
+ */
+function renderTable(element: Element): string {
+  const rows = tableRows(element)
+  const widest = rows.reduce((width, cells) => Math.max(width, cells.length), 0)
+  if (widest === 0) return ''
+  const line = (cells: readonly string[]): string =>
+    `| ${Array.from({ length: widest }, (_, index) => cells[index] ?? '').join(' | ')} |`
+  const divider = line(Array.from({ length: widest }, () => '---'))
+  const [header = [], ...body] = rows
+  return [line(header), divider, ...body.map(cells => line(cells))].join('\n')
+}
+
+/**
+ * Collect the rows of one table, wherever it keeps them.
+ * @param element - the `table` element.
+ * @returns the rows, in document order.
+ */
+function tableRows(element: Element): readonly (readonly string[])[] {
+  const rows: (readonly string[])[] = []
+  for (const child of element.children) {
+    if (typeof child === 'string') continue
+    if (child.name === 'tr') rows.push(tableRow(child))
+    else if (child.name === 'thead' || child.name === 'tbody' || child.name === 'tfoot') rows.push(...tableRows(child))
+  }
+  return rows
+}
+
+/**
+ * Render one table row.
+ * @param element - the `tr` element.
+ * @returns its cells as inline Markdown, one entry per cell.
+ */
+function tableRow(element: Element): readonly string[] {
+  return element.children.flatMap(child =>
+    typeof child !== 'string' && (child.name === 'td' || child.name === 'th') ? [tableCell(child)] : [])
+}
+
+/**
+ * Render one table cell as the single line a pipe row allows.
+ * @param element - the `td` or `th` element.
+ * @returns its inline Markdown, with line breaks as `<br>` and pipes escaped.
+ */
+function tableCell(element: Element): string {
+  return renderInline(element.children)
+    .replaceAll(HARD_BREAK, '<br>')
+    .replace(WHITESPACE, ' ')
+    .replaceAll('|', '\\|')
+    .trim()
 }
 
 /**

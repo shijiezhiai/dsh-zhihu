@@ -52,7 +52,7 @@ Every setting has a default and is validated at load:
 | `http.userAgent` | Chrome 126 on macOS | User-Agent sent to Zhihu |
 | `http.requestTimeoutMs` | `20000` | One request's deadline |
 | `http.minIntervalMs` | `1000` | Spacing between calls to Zhihu |
-| `http.maxContentChars` | `8000` | Longest body the provider keeps |
+| `http.maxContentChars` | `30000` | Longest body the provider keeps |
 | `http.pageSize` | `20` | Rows per feed page |
 | `http.maxFeedPages` | `3` | Pages one feed call may walk |
 | `http.answerLimit` | `1` | Answers read with one question |

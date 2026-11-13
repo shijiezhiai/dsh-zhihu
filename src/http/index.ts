@@ -61,7 +61,7 @@ export const Config: z<Config> = z.object({
   credential: z.string().default('zhihu'),
   requestTimeoutMs: z.number().default(20_000),
   minIntervalMs: z.number().default(1_000),
-  maxContentChars: z.number().default(8_000),
+  maxContentChars: z.number().default(30_000),
   pageSize: z.number().default(20),
   maxFeedPages: z.number().default(3),
   answerLimit: z.number().default(1),

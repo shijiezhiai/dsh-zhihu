@@ -2,4 +2,4 @@
 # authenticated Remote and its browser surface from one entry.
 - insert:
     - id: zhihu
-      name: '@deepseek-ai/dsh-zhihu-plugin'
+      name: '@mayangyang/dsh-zhihu'

@@ -2,6 +2,13 @@
 
 Every tag publishes the prebuilt tarball the plugin-market entry installs, at `https://github.com/shijiezhiai/dsh-zhihu/releases/download/v<version>/dsh-zhihu.tgz`; the asset name stays `dsh-zhihu.tgz`, so a version is identified by its URL.
 
+## 1.2.1
+
+### Fixed
+
+- A table renders as a pipe table instead of one paragraph per cell, so a benchmark or comparison inside a column post keeps its rows and columns.
+- A long column post arrives whole: the default body cap rises from 8000 to 30000 characters.
+
 ## 1.2.0
 
 ### Added
