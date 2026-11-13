@@ -9,6 +9,7 @@
 import { type EngineStoreHandle } from '@deepseek-ai/dsh-client-store';
 import type { SessionId } from '@deepseek-ai/dsh-session/types';
 import type { ZhihuFeedRow } from '@deepseek-ai/dsh-zhihu-plugin/types';
+import type { ZhihuQuoteSource } from './zhihu-quote.ts';
 /** The lanes the page pages through the feed Remote. */
 export type ZhihuFeedTab = 'recommend' | 'hot' | 'follow';
 /** Every lane the page switches between. */
@@ -34,6 +35,11 @@ export interface ZhihuDiscussionEntry {
     readonly sessionId: SessionId;
     /** The row as it was when the discussion opened, so the list reopens the same item. */
     readonly row: ZhihuFeedRow;
+    /**
+     * Every item a comparison quotes, when the discussion compares several; absent for a discussion
+     * about one row, which {@link row} already names.
+     */
+    readonly rows?: readonly ZhihuFeedRow[];
     /** When the discussion was last opened, in milliseconds since the epoch. */
     readonly openedAt: number;
     /** The first line of the last answer the reader left it at, when one settled. */
@@ -80,6 +86,12 @@ export interface ZhihuPageState {
      * A state persisted before rank tracking existed restores without the field, so readers default it.
      */
     moves?: Partial<Record<ZhihuFeedTab, Readonly<Record<string, ZhihuRankMove>>>>;
+    /**
+     * The passages collected for the next discussion, in the order the reader added them, each
+     * grouped under the row it was read in.
+     * A state persisted before comparisons existed restores without the field, so readers default it.
+     */
+    comparison?: readonly ZhihuQuoteSource[];
 }
 /** The page store's write set. A type alias, not an interface, so it satisfies `ActionsDecl`'s index signature. */
 export type ZhihuPageActions = {
@@ -135,6 +147,12 @@ export type ZhihuPageActions = {
      * @param key - the row's discussion key.
      */
     forgot(draft: ZhihuPageState, key: string): void;
+    /**
+     * Replace the passages collected for the next discussion.
+     * @param draft - the current state.
+     * @param sources - the comparison as the page now holds it; empty clears the bar.
+     */
+    collected(draft: ZhihuPageState, sources: readonly ZhihuQuoteSource[]): void;
 };
 /** The store handle the `main` registration declares and the page reads. */
 export type ZhihuPageStore = EngineStoreHandle<ZhihuPageState, ZhihuPageActions>;

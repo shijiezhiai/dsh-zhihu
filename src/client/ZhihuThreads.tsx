@@ -29,7 +29,7 @@ export interface ZhihuThread {
 export function ZhihuThreads({ threads, t, onOpen, onArchive }: {
   readonly threads: readonly ZhihuThread[]
   readonly t: ZhihuTranslate
-  readonly onOpen: (entry: ZhihuDiscussionEntry) => void
+  readonly onOpen: (thread: ZhihuThread) => void
   readonly onArchive: (thread: ZhihuThread) => void
 }): ReactNode {
   if (threads.length === 0) return <p className={css.state}>{t('threads.empty')}</p>
@@ -40,9 +40,11 @@ export function ZhihuThreads({ threads, t, onOpen, onArchive }: {
           <button
             type="button"
             className={css.threadTitle}
-            onClick={() => { onOpen(thread.entry) }}
+            onClick={() => { onOpen(thread) }}
           >
-            {thread.entry.row.title}
+            {thread.entry.rows !== undefined && thread.entry.rows.length > 1
+              ? t('threads.compare', { title: thread.entry.row.title, count: thread.entry.rows.length - 1 })
+              : thread.entry.row.title}
           </button>
           <span className={css.threadMeta}>
             <span>{t(zhihuKindKey(thread.entry.row.kind))}</span>

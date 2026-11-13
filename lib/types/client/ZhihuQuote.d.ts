@@ -11,6 +11,8 @@ export interface ZhihuQuoteBoxProps {
     readonly t: ZhihuTranslate;
     /** Called with what to ask about the passage. */
     readonly onAsk: (instruction: string) => void;
+    /** Called when the reader files the passage into the comparison instead of asking about it. */
+    readonly onCollect: () => void;
 }
 /**
  * Render the passage bubble. The page owns everything that dismisses it, so the
@@ -18,5 +20,5 @@ export interface ZhihuQuoteBoxProps {
  * @param props - the passage, the copy and the ask handler.
  * @returns the bubble, carrying the passage above its questions.
  */
-export declare function ZhihuQuoteBox({ passage, count, t, onAsk }: ZhihuQuoteBoxProps): ReactNode;
+export declare function ZhihuQuoteBox({ passage, count, t, onAsk, onCollect }: ZhihuQuoteBoxProps): ReactNode;
 //# sourceMappingURL=ZhihuQuote.d.ts.map

@@ -7,6 +7,7 @@
  * rendered text would name nothing on the model's side; text that appears in both
  * does.
  */
+import type { ZhihuFeedRow } from '@deepseek-ai/dsh-zhihu-plugin/types';
 import type { ZhihuTranslate } from './ZhihuContent.tsx';
 /** The longest passage one instruction carries; the full body stays one `zhihu_read` away. */
 export declare const QUOTE_MAX_CHARS = 1200;
@@ -43,6 +44,21 @@ export declare function toggleSegment(segments: readonly string[], text: string)
  * @returns the passages separated by a blank line, capped as a whole.
  */
 export declare function segmentsText(segments: readonly string[]): string;
+/** Passages a comparison holds, grouped by the item they were read in. */
+export interface ZhihuQuoteSource {
+    /** The row the passages came from. */
+    readonly row: ZhihuFeedRow;
+    /** The passages quoted from that row, in the order they were pointed at. */
+    readonly segments: readonly string[];
+}
+/**
+ * Add passages read in one row to the comparison.
+ * @param sources - the comparison so far.
+ * @param row - the row the passages came from.
+ * @param segments - the passages this gesture named.
+ * @returns the comparison carrying those passages, deduplicated; a row already quoted keeps its place.
+ */
+export declare function collectQuote(sources: readonly ZhihuQuoteSource[], row: ZhihuFeedRow, segments: readonly string[]): readonly ZhihuQuoteSource[];
 /**
  * Place the bubble against the passage, keeping it inside the viewport.
  * @param rect - the passage's viewport rectangle.

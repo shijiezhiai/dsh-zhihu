@@ -23,7 +23,7 @@ export interface ZhihuThread {
 export declare function ZhihuThreads({ threads, t, onOpen, onArchive }: {
     readonly threads: readonly ZhihuThread[];
     readonly t: ZhihuTranslate;
-    readonly onOpen: (entry: ZhihuDiscussionEntry) => void;
+    readonly onOpen: (thread: ZhihuThread) => void;
     readonly onArchive: (thread: ZhihuThread) => void;
 }): ReactNode;
 //# sourceMappingURL=ZhihuThreads.d.ts.map

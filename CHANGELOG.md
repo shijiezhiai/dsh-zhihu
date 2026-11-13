@@ -2,6 +2,14 @@
 
 Every tag publishes the prebuilt tarball the plugin-market entry installs, at `https://github.com/shijiezhiai/dsh-zhihu/releases/download/v<version>/dsh-zhihu.tgz`; the asset name stays `dsh-zhihu.tgz`, so a version is identified by its URL.
 
+## 1.3.0
+
+### Added
+
+- A comparison across items: a passage can be filed from the bubble into a comparison instead of asking about it right away, more passages join it from other items, and the bar under the list names how many passages from how many items it holds. Clearing it empties the bar; the bar and what it holds come back with the page.
+- Discuss these opens one Session for the whole comparison and sends it as the first message: each item arrives with its kind and id so a read reaches it, and every passage is quoted under the item it came from. The same set of items always resumes the same Session, and a set of one reuses that item's own discussion.
+- A comparison appears in My discussions under the item it started from, marked with how many items it adds, and reopens with every item it quotes.
+
 ## 1.2.2
 
 ### Fixed

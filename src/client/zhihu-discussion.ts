@@ -10,6 +10,8 @@ import type { ISessions, SessionEventSource, SessionReference } from '@deepseek-
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { ZhihuFeedRow } from '@deepseek-ai/dsh-zhihu-plugin/types'
 import type { ZhihuTranslate } from './ZhihuContent.tsx'
+import type { ZhihuQuoteSource } from './zhihu-quote.ts'
+import { zhihuRowKey } from './zhihu-row-key.ts'
 
 declare module '@deepseek-ai/dsh-api-session-controller/client' {
   interface SessionReferenceSourceMap {
@@ -50,6 +52,50 @@ export function zhihuDiscussionPrompt(t: ZhihuTranslate, row: ZhihuFeedRow, inst
     id: row.id,
     instruction,
   })
+}
+
+/**
+ * The key a comparison keeps its discussion under: the rows it quotes, in a stable order.
+ * @param rows - the rows the comparison quotes.
+ * @returns one row's own key when the comparison quotes a single item, otherwise a key naming the set.
+ */
+export function zhihuCompareKey(rows: readonly ZhihuFeedRow[]): string {
+  const keys = [...new Set(rows.map(row => zhihuRowKey(row)))].sort()
+  const joined = keys.join('+')
+  return keys.length === 1 ? joined : `compare:${joined}`
+}
+
+/**
+ * Compose the instruction that compares passages read in several rows.
+ *
+ * Each source block names the kind and id `zhihu_read` takes, so the model reads every item the
+ * comparison quotes rather than the one the page happened to open first.
+ * @param t - copy of the Zhihu namespace.
+ * @param sources - the passages, grouped by the row they came from.
+ * @param instruction - what the reader asked for, in their own copy.
+ * @returns the message text, carrying every source and its passages.
+ */
+export function zhihuComparePrompt(
+  t: ZhihuTranslate,
+  sources: readonly ZhihuQuoteSource[],
+  instruction: string,
+): string {
+  const blocks = sources.map((source, index) => {
+    const row = source.row
+    const head = t('compare.source', {
+      index: index + 1,
+      kind: t(zhihuKindKey(row.kind)),
+      title: row.title,
+      url: row.url,
+      source: row.kind,
+      id: row.id,
+    })
+    const quote = source.segments
+      .map(segment => segment.split('\n').map(line => '> ' + line).join('\n'))
+      .join('\n\n')
+    return `${head}\n\n${quote}`
+  })
+  return t('compare.intro', { count: sources.length, instruction }) + '\n\n' + blocks.join('\n\n')
 }
 
 /** One opened discussion. */

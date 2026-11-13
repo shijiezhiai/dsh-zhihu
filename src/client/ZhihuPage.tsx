@@ -17,19 +17,28 @@ import type { ZhihuDetailAction, ZhihuDetailRegistry } from './zhihu-detail.ts'
 import {
   DISCUSSION_PANEL_TIMEOUT_MS,
   lastAnswerLine,
+  zhihuCompareKey,
+  zhihuComparePrompt,
   zhihuDiscussionPrompt,
   type ZhihuDiscussion,
   type ZhihuDiscussionSeat,
 } from './zhihu-discussion.ts'
 import { zhihuRowKey } from './zhihu-row-key.ts'
 import { zhihuPanelFailureLine } from './zhihu-panel-failure.ts'
-import { readPassage, segmentsText, toggleSegment, zhihuQuotedInstruction, type ZhihuPassage } from './zhihu-quote.ts'
+import {
+  collectQuote,
+  readPassage,
+  segmentsText,
+  toggleSegment,
+  zhihuQuotedInstruction,
+  type ZhihuPassage,
+  type ZhihuQuoteSource,
+} from './zhihu-quote.ts'
 import { ZhihuQuoteBox } from './ZhihuQuote.tsx'
 import type { ZhihuPageFace } from './zhihu-page-face.ts'
 import {
   zhihuDiscussionEntry,
   zhihuDiscussionSession,
-  type ZhihuDiscussionEntry,
   type ZhihuFeedTab,
   type ZhihuPageStore,
   type ZhihuPageTab,
@@ -45,6 +54,9 @@ type FeedTab = ZhihuFeedTab
 type PageTab = ZhihuPageTab
 
 const LANES: readonly PageTab[] = ['recommend', 'hot', 'follow', 'search']
+
+/** The comparison a fresh or pre-comparison state holds. One instance, so the bar's identity is stable. */
+const EMPTY_COMPARISON: readonly ZhihuQuoteSource[] = []
 
 /** Where the context menu opens, in viewport pixels. */
 interface MenuAt {
@@ -329,6 +341,32 @@ function detailMenu(t: ZhihuTranslate, keycaps: (action: ZhihuDetailAction) => r
  * @returns the lane switch, the lane on screen, or the opened row.
  */
 /**
+ * Render the passages the reader collected, and the two decisions they lead to.
+ * @param props.items - how many rows the comparison quotes.
+ * @param props.segments - how many passages it holds.
+ * @param props.t - copy of the Zhihu namespace.
+ * @param props.onDiscuss - opens the discussion that compares the passages.
+ * @param props.onClear - empties the comparison.
+ * @returns the bar, pinned under whatever surface the page shows.
+ */
+function ZhihuCompareBar({ items, segments, t, onDiscuss, onClear }: {
+  readonly items: number
+  readonly segments: number
+  readonly t: ZhihuTranslate
+  readonly onDiscuss: () => void
+  readonly onClear: () => void
+}): ReactNode {
+  const count = { items, segments }
+  return (
+    <div className={css.compare} role="region" aria-label={t('compare.tray', count)}>
+      <span className={css.compareText}>{t('compare.tray', count)}</span>
+      <Button variant="ghost" size="sm" onClick={onClear}>{t('compare.clear')}</Button>
+      <Button variant="outline" size="sm" onClick={onDiscuss}>{t('compare.discuss')}</Button>
+    </div>
+  )
+}
+
+/**
  * Name the cause of a refused export, so the reader gets more than "it did not work".
  * @param message - the diagnostic the Host sent, or an empty string when it sent none.
  * @param t - the page's translate seat.
@@ -360,6 +398,8 @@ export function ZhihuPage(
   const [surface, setSurface] = useState<DetailSurface>('body')
   /** The passage the reader pointed at, while its bubble is up. */
   const [quote, setQuote] = useState<ZhihuQuote | undefined>(undefined)
+  // A state persisted before comparisons existed restores without them, so the bar starts empty.
+  const comparison = useStore(state => state.comparison) ?? EMPTY_COMPARISON
   const [chat, setChat] = useState<{ status: 'idle' | 'opening' | 'ready' | 'failed'; seat?: ZhihuDiscussion; reason?: string }>({ status: 'idle' })
   /** Whole seconds the pane has been waiting, so a stall is visible instead of static. */
   const [waited, setWaited] = useState(0)
@@ -374,6 +414,11 @@ export function ZhihuPage(
     .sort((left, right) => right.entry.openedAt - left.entry.openedAt), [discussions])
   // A state persisted before rank tracking existed restores without it, so the list marks nothing.
   const moves = useStore(state => state.moves)
+  /** What the comparison holds, as the bar counts it. */
+  const collected = useMemo(() => ({
+    items: comparison.length,
+    segments: comparison.reduce((total, source) => total + source.segments.length, 0),
+  }), [comparison])
   /** The discussion this panel holds a reference to; the Session outlives it. */
   const held = useRef<ZhihuDiscussion | null>(null)
   /** Latest open, so an answer for a row the reader left writes nothing. */
@@ -499,20 +544,31 @@ export function ZhihuPage(
   const stalled = chat.status === 'opening' && waited >= DISCUSSION_PANEL_TIMEOUT_MS
 
   /**
-   * Show the conversation about the open row, resuming the Session a previous
+   * Show the conversation about one row or a set of rows, resuming the Session a previous
    * visit retained or creating the one it runs in.
+   * @param key - the discussion's identity in the page's store: one row's key, or a comparison's.
+   * @param rows - the items discussed; the first is the one the list reopens.
    */
-  const discuss = useCallback(async (row: ZhihuFeedRow): Promise<ZhihuDiscussion | undefined> => {
-    const key = zhihuRowKey(row)
+  const openDiscussion = useCallback(async (
+    key: string,
+    rows: readonly ZhihuFeedRow[],
+  ): Promise<ZhihuDiscussion | undefined> => {
+    const head = rows[0]
+    if (head === undefined) return undefined
     const known = zhihuDiscussionSession(discussions?.[key])
     setNotice(undefined)
     setSurface('discussion')
     setChat({ status: 'opening' })
     try {
-      const next = await discussion.open(row, known)
+      const next = await discussion.open(head, known)
       release()
       held.current = next
-      actions.remember(key, { sessionId: next.reference.sessionId, row, openedAt: Date.now() })
+      actions.remember(key, {
+        sessionId: next.reference.sessionId,
+        row: head,
+        openedAt: Date.now(),
+        ...(rows.length > 1 ? { rows } : {}),
+      })
       setChat({ status: 'ready', seat: next })
       return next
     } catch (error) {
@@ -522,12 +578,18 @@ export function ZhihuPage(
     }
   }, [actions, discussion, discussions, release])
 
-  /** Reopen the row a listed discussion was about, straight on its conversation. */
-  const resume = useCallback((entry: ZhihuDiscussionEntry): void => {
+  /** Show the conversation about one row. */
+  const discuss = useCallback(
+    async (row: ZhihuFeedRow): Promise<ZhihuDiscussion | undefined> => openDiscussion(zhihuRowKey(row), [row]),
+    [openDiscussion],
+  )
+
+  /** Reopen the items a listed discussion was about, straight on its conversation. */
+  const resume = useCallback((thread: ZhihuThread): void => {
     setLibrary(false)
-    read(entry.row)
-    void discuss(entry.row)
-  }, [discuss, read])
+    read(thread.entry.row)
+    void openDiscussion(thread.key, thread.entry.rows ?? [thread.entry.row])
+  }, [openDiscussion, read])
 
   /** File one discussion's Session away, so it leaves the page's list with it. */
   const archiveThread = useCallback((thread: ZhihuThread): void => {
@@ -537,13 +599,38 @@ export function ZhihuPage(
     })
   }, [actions, archive, t])
 
-  /** Send one instruction into the open discussion. */
-  const instruct = useCallback((seat: ZhihuDiscussion, row: ZhihuFeedRow, instruction: string): void => {
+  /** Send one prepared message into an open discussion. */
+  const send = useCallback((seat: ZhihuDiscussion, text: string): void => {
     setNotice(undefined)
-    void seat.send(zhihuDiscussionPrompt(t, row, instruction)).then((accepted) => {
+    void seat.send(text).then((accepted) => {
       if (!accepted) setNotice(t('discussion.failed'))
     }, () => { setNotice(t('discussion.failed')) })
   }, [t])
+
+  /** Send one instruction into the open discussion. */
+  const instruct = useCallback((seat: ZhihuDiscussion, row: ZhihuFeedRow, instruction: string): void => {
+    send(seat, zhihuDiscussionPrompt(t, row, instruction))
+  }, [send, t])
+
+  /** File the passages the reader pointed at into the comparison. */
+  const collect = useCallback((row: ZhihuFeedRow, segments: readonly string[]): void => {
+    setQuote(undefined)
+    const next = collectQuote(comparison, row, segments)
+    actions.collected(next)
+    setNotice(t('compare.added', {
+      segments: next.reduce((total, source) => total + source.segments.length, 0),
+      items: next.length,
+    }))
+  }, [actions, comparison, t])
+
+  /** Open the discussion that compares everything the reader collected, and ask for the comparison. */
+  const compareCollected = useCallback(async (): Promise<void> => {
+    if (comparison.length === 0) return
+    const rows = comparison.map(source => source.row)
+    const seat = await openDiscussion(zhihuCompareKey(rows), rows)
+    if (seat === undefined) return
+    send(seat, zhihuComparePrompt(t, comparison, t('compare.ask')))
+  }, [comparison, openDiscussion, send, t])
 
   /**
    * Ask about one passage, in the discussion this row already has or the one it opens now.
@@ -755,12 +842,25 @@ export function ZhihuPage(
               )}
             </div>
           )}
+        {comparison.length > 0 && (
+          <ZhihuCompareBar
+            items={collected.items}
+            segments={collected.segments}
+            t={t}
+            onDiscuss={() => { void compareCollected() }}
+            onClear={() => {
+              actions.collected(EMPTY_COMPARISON)
+              setNotice(undefined)
+            }}
+          />
+        )}
         {quote !== undefined && (
           <ZhihuQuoteBox
             passage={quote}
             count={quote.segments.length}
             t={t}
             onAsk={(instruction) => { void askPassage(opened.row, quote.text, instruction) }}
+            onCollect={() => { collect(opened.row, quote.segments) }}
           />
         )}
         <Menu
@@ -866,6 +966,18 @@ export function ZhihuPage(
           </p>
         )}
       </div>
+      {comparison.length > 0 && (
+        <ZhihuCompareBar
+          items={collected.items}
+          segments={collected.segments}
+          t={t}
+          onDiscuss={() => { void compareCollected() }}
+          onClear={() => {
+            actions.collected(EMPTY_COMPARISON)
+            setNotice(undefined)
+          }}
+        />
+      )}
     </section>
   )
 }

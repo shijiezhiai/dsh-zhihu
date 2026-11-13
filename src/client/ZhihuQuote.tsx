@@ -35,6 +35,8 @@ export interface ZhihuQuoteBoxProps {
   readonly t: ZhihuTranslate
   /** Called with what to ask about the passage. */
   readonly onAsk: (instruction: string) => void
+  /** Called when the reader files the passage into the comparison instead of asking about it. */
+  readonly onCollect: () => void
 }
 
 /**
@@ -43,7 +45,7 @@ export interface ZhihuQuoteBoxProps {
  * @param props - the passage, the copy and the ask handler.
  * @returns the bubble, carrying the passage above its questions.
  */
-export function ZhihuQuoteBox({ passage, count, t, onAsk }: ZhihuQuoteBoxProps): ReactNode {
+export function ZhihuQuoteBox({ passage, count, t, onAsk, onCollect }: ZhihuQuoteBoxProps): ReactNode {
   const [draft, setDraft] = useState('')
   const asking = draft.trim()
   return (
@@ -57,6 +59,7 @@ export function ZhihuQuoteBox({ passage, count, t, onAsk }: ZhihuQuoteBoxProps):
       <p className={css.passage}>{passage.text}</p>
       {count > 1 && <p className={css.count}>{t('quote.segments', { count })}</p>}
       <div className={css.quick}>
+        <Button variant="outline" size="sm" onClick={() => { onCollect() }}>{t('quote.collect')}</Button>
         {QUICK_KEYS.map(key => (
           <Button key={key} variant="outline" size="sm" onClick={() => { onAsk(t(key)) }}>{t(key)}</Button>
         ))}

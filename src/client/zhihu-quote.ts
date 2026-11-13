@@ -7,7 +7,9 @@
  * rendered text would name nothing on the model's side; text that appears in both
  * does.
  */
+import type { ZhihuFeedRow } from '@deepseek-ai/dsh-zhihu-plugin/types'
 import type { ZhihuTranslate } from './ZhihuContent.tsx'
+import { zhihuRowKey } from './zhihu-row-key.ts'
 
 /** The longest passage one instruction carries; the full body stays one `zhihu_read` away. */
 export const QUOTE_MAX_CHARS = 1200
@@ -80,6 +82,36 @@ export function toggleSegment(segments: readonly string[], text: string): readon
  */
 export function segmentsText(segments: readonly string[]): string {
   return cap(segments.join('\n\n'))
+}
+
+/** Passages a comparison holds, grouped by the item they were read in. */
+export interface ZhihuQuoteSource {
+  /** The row the passages came from. */
+  readonly row: ZhihuFeedRow
+  /** The passages quoted from that row, in the order they were pointed at. */
+  readonly segments: readonly string[]
+}
+
+/**
+ * Add passages read in one row to the comparison.
+ * @param sources - the comparison so far.
+ * @param row - the row the passages came from.
+ * @param segments - the passages this gesture named.
+ * @returns the comparison carrying those passages, deduplicated; a row already quoted keeps its place.
+ */
+export function collectQuote(
+  sources: readonly ZhihuQuoteSource[],
+  row: ZhihuFeedRow,
+  segments: readonly string[],
+): readonly ZhihuQuoteSource[] {
+  const key = zhihuRowKey(row)
+  const at = sources.findIndex(source => zhihuRowKey(source.row) === key)
+  if (at === -1) return [...sources, { row, segments }]
+  const current = sources[at]
+  const merged = current === undefined
+    ? segments
+    : [...current.segments, ...segments.filter(segment => !current.segments.includes(segment))]
+  return sources.map((source, index) => (index === at ? { row, segments: merged } : source))
 }
 
 /**

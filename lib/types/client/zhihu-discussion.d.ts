@@ -9,6 +9,7 @@
 import type { ISessions, SessionReference } from '@deepseek-ai/dsh-api-session-controller/client';
 import type { ZhihuFeedRow } from '@deepseek-ai/dsh-zhihu-plugin/types';
 import type { ZhihuTranslate } from './ZhihuContent.tsx';
+import type { ZhihuQuoteSource } from './zhihu-quote.ts';
 declare module '@deepseek-ai/dsh-api-session-controller/client' {
     interface SessionReferenceSourceMap {
         /** A Zhihu row's conversation, referenced while its segment is on screen. */
@@ -32,6 +33,23 @@ export declare function zhihuKindKey(kind: ZhihuFeedRow['kind']): 'kind.question
  * @returns the message text.
  */
 export declare function zhihuDiscussionPrompt(t: ZhihuTranslate, row: ZhihuFeedRow, instruction: string): string;
+/**
+ * The key a comparison keeps its discussion under: the rows it quotes, in a stable order.
+ * @param rows - the rows the comparison quotes.
+ * @returns one row's own key when the comparison quotes a single item, otherwise a key naming the set.
+ */
+export declare function zhihuCompareKey(rows: readonly ZhihuFeedRow[]): string;
+/**
+ * Compose the instruction that compares passages read in several rows.
+ *
+ * Each source block names the kind and id `zhihu_read` takes, so the model reads every item the
+ * comparison quotes rather than the one the page happened to open first.
+ * @param t - copy of the Zhihu namespace.
+ * @param sources - the passages, grouped by the row they came from.
+ * @param instruction - what the reader asked for, in their own copy.
+ * @returns the message text, carrying every source and its passages.
+ */
+export declare function zhihuComparePrompt(t: ZhihuTranslate, sources: readonly ZhihuQuoteSource[], instruction: string): string;
 /** One opened discussion. */
 export interface ZhihuDiscussion {
     /** The retained Client Session the embedded Conversation renders. */

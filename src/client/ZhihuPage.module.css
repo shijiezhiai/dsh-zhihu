@@ -140,3 +140,22 @@
   color: var(--dsw-alias-label-secondary);
   overflow-wrap: anywhere;
 }
+
+/* The passages filed for one comparison, pinned under whatever surface the page shows. */
+.compare {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: var(--dsw-radius-lg);
+  background: var(--dsw-alias-surface-l1, transparent);
+}
+
+.compareText {
+  flex: 1;
+  min-width: 0;
+  color: var(--dsw-alias-label-secondary);
+  overflow-wrap: anywhere;
+}
