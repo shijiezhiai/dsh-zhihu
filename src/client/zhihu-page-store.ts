@@ -7,6 +7,7 @@
  * never revives an error or asks for a page on its own.
  */
 import { defineStore, type EngineStoreHandle } from '@deepseek-ai/dsh-client-store'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { ZhihuFeedRow } from '@deepseek-ai/dsh-zhihu-plugin/types'
 import { zhihuRowKey } from './zhihu-row-key.ts'
 
@@ -28,6 +29,44 @@ export type ZhihuRankMove =
   | { readonly kind: 'up'; readonly places: number }
   | { readonly kind: 'down'; readonly places: number }
 
+/** One row's discussion, as the page lists it again after a reload. */
+export interface ZhihuDiscussionEntry {
+  /** The Session the discussion runs in. */
+  readonly sessionId: SessionId
+  /** The row as it was when the discussion opened, so the list reopens the same item. */
+  readonly row: ZhihuFeedRow
+  /** When the discussion was last opened, in milliseconds since the epoch. */
+  readonly openedAt: number
+  /** The first line of the last answer the reader left it at, when one settled. */
+  readonly lastLine?: string
+}
+
+/**
+ * One discussion as persisted: the entry, or the Session id alone that a state written before the
+ * page listed discussions carries.
+ */
+export type ZhihuDiscussionRecord = ZhihuDiscussionEntry | string
+
+/**
+ * Read back the entry a persisted discussion carries.
+ * @param record - one discussion as the store holds it.
+ * @returns the entry, or undefined for the Session id alone a legacy state wrote.
+ */
+export function zhihuDiscussionEntry(record: ZhihuDiscussionRecord | undefined): ZhihuDiscussionEntry | undefined {
+  if (record === undefined || typeof record === 'string') return undefined
+  return record
+}
+
+/**
+ * Read the Session one persisted discussion runs in.
+ * @param record - one discussion as the store holds it.
+ * @returns its Session, or undefined when the row has no discussion.
+ */
+export function zhihuDiscussionSession(record: ZhihuDiscussionRecord | undefined): SessionId | undefined {
+  if (record === undefined) return undefined
+  return typeof record === 'string' ? record as SessionId : record.sessionId
+}
+
 /** The page's persisted state. */
 export interface ZhihuPageState {
   /** The lane on screen. */
@@ -41,10 +80,10 @@ export interface ZhihuPageState {
   /** Vertical offset of the list, so a reopened page resumes where the reader left it. */
   scrollTop: number
   /**
-   * The Session each row's discussion runs in, keyed by {@link zhihuRowKey}.
+   * The discussion each row holds, keyed by {@link zhihuRowKey}.
    * A state persisted before discussions existed restores without the field, so readers default it.
    */
-  discussions?: Record<string, string>
+  discussions?: Record<string, ZhihuDiscussionRecord>
   /**
    * How each row moved in the latest read of its lane, keyed by lane and then by {@link zhihuRowKey}.
    * Only a row that was new, climbed or fell carries an entry, so the field stays small and the
@@ -89,12 +128,25 @@ export type ZhihuPageActions = {
    */
   scrolled(draft: ZhihuPageState, scrollTop: number): void
   /**
-   * Remember the Session one row's discussion runs in.
+   * Remember one row's discussion, keeping the line an earlier visit left it at.
    * @param draft - the current state.
    * @param key - the row's discussion key.
-   * @param sessionId - the identity the page retained.
+   * @param entry - the discussion as this visit opened it.
    */
-  remember(draft: ZhihuPageState, key: string, sessionId: string): void
+  remember(draft: ZhihuPageState, key: string, entry: ZhihuDiscussionEntry): void
+  /**
+   * Record the answer the reader left one discussion at.
+   * @param draft - the current state.
+   * @param key - the row's discussion key.
+   * @param line - the first line of its last answer.
+   */
+  noted(draft: ZhihuPageState, key: string, line: string): void
+  /**
+   * Drop one discussion from the page, once the Session it ran in was filed away.
+   * @param draft - the current state.
+   * @param key - the row's discussion key.
+   */
+  forgot(draft: ZhihuPageState, key: string): void
 }
 
 /** The store handle the `main` registration declares and the page reads. */
@@ -171,7 +223,23 @@ export function createZhihuPageStore(): ZhihuPageStore {
         writeLane(draft, tab, { rows: [...current.rows, ...lane.rows], cursor: lane.cursor })
       },
       scrolled: (draft, scrollTop) => { draft.scrollTop = scrollTop },
-      remember: (draft, key, sessionId) => { draft.discussions = { ...draft.discussions, [key]: sessionId } },
+      remember: (draft, key, entry) => {
+        const kept = zhihuDiscussionEntry(draft.discussions?.[key])?.lastLine
+        const lastLine = entry.lastLine ?? kept
+        const record = lastLine === undefined ? entry : { ...entry, lastLine }
+        draft.discussions = { ...draft.discussions, [key]: record }
+      },
+      noted: (draft, key, line) => {
+        const entry = zhihuDiscussionEntry(draft.discussions?.[key])
+        if (entry === undefined) return
+        draft.discussions = { ...draft.discussions, [key]: { ...entry, lastLine: line } }
+      },
+      forgot: (draft, key) => {
+        if (draft.discussions === undefined) return
+        draft.discussions = Object.fromEntries(
+          Object.entries(draft.discussions).filter(([kept]) => kept !== key),
+        )
+      },
     },
   })
 }

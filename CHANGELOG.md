@@ -2,6 +2,13 @@
 
 Every tag publishes the prebuilt tarball the plugin-market entry installs, at `https://github.com/shijiezhiai/dsh-zhihu/releases/download/v<version>/dsh-zhihu.tgz`; the asset name stays `dsh-zhihu.tgz`, so a version is identified by its URL.
 
+## 1.2.0
+
+### Added
+
+- My discussions: a list of every discussion the panel remembers, each with the row it belongs to, the kind, the time it opened and the last answer's first line. Opening one returns to that row and resumes its Session instead of starting another.
+- A discussion can be archived from the list: the entry leaves the list and the workspace archive keeps the Session, while a refused archive leaves both the entry and a line saying so.
+
 ## 1.1.2
 
 ### Fixed

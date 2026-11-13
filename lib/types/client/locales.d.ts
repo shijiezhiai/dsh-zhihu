@@ -84,6 +84,10 @@ export declare const en: {
     'discussion.seconds': string;
     'discussion.stalled': string;
     'discussion.prompt': string;
+    'threads.title': string;
+    'threads.empty': string;
+    'threads.archive': string;
+    'threads.archiveFailed': string;
     'quote.action': string;
     'quote.placeholder': string;
     'quote.send': string;

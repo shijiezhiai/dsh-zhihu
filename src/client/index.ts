@@ -148,7 +148,12 @@ function registerZhihuUi(ctx: ClientContext, resolveRemote: () => ClientRemote['
   ctx.effect(() => ctx.slots.inject('main', () => ctx.slots.register({
     name: 'main', key: ZHIHU_PAGE_ID, locale: NS, store: pageStore,
     children: { 'zhihu.discussion': { kind: 'single', scope: 'session' } },
-  }, zhihuPageFor(page, details, zhihuKeycaps(ctx.shortcuts), discussion, notice.announce))), 'ui-zhihu: feed page')
+  }, zhihuPageFor(
+    page, details, zhihuKeycaps(ctx.shortcuts), discussion,
+    // Filing a discussion away archives the Session it ran in, so the session list and this page agree.
+    sessionId => ctx.uiWorkspace.archiveSession(sessionId),
+    notice.announce,
+  ))), 'ui-zhihu: feed page')
   // The page declares the slot above; a row's discussion renders the Conversation factory's chat view inside it.
   ctx.effect(() => ctx.slots.inject('zhihu.discussion', () => ctx.slots.register(
     { name: 'zhihu.discussion', locale: NS },

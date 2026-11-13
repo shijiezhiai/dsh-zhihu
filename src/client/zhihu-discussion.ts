@@ -18,12 +18,18 @@ declare module '@deepseek-ai/dsh-api-session-controller/client' {
   }
 }
 
-/** The row's kind, named by the copy that says what is being discussed. */
-const KIND_KEYS = {
-  answer: 'kind.answer',
-  article: 'kind.article',
-  question: 'kind.question',
-} as const
+/**
+ * The copy key that names what kind of item a row is.
+ * @param kind - the row's kind.
+ * @returns the key of its label.
+ */
+export function zhihuKindKey(kind: ZhihuFeedRow['kind']): 'kind.question' | 'kind.answer' | 'kind.article' {
+  switch (kind) {
+    case 'question': return 'kind.question'
+    case 'answer': return 'kind.answer'
+    case 'article': return 'kind.article'
+  }
+}
 
 /**
  * Compose the instruction that opens or continues a discussion.
@@ -37,7 +43,7 @@ const KIND_KEYS = {
  */
 export function zhihuDiscussionPrompt(t: ZhihuTranslate, row: ZhihuFeedRow, instruction: string): string {
   return t('discussion.prompt', {
-    kind: t(KIND_KEYS[row.kind]),
+    kind: t(zhihuKindKey(row.kind)),
     title: row.title,
     url: row.url,
     source: row.kind,
@@ -156,6 +162,22 @@ function transcriptOf(source: SessionEventSource): readonly ZhihuDiscussionTurn[
     if (text !== '') turns.push({ role: 'assistant', text })
   }
   return turns
+}
+
+/** Characters of an answer the discussion list keeps as its reminder. */
+export const DISCUSSION_LINE_LIMIT = 120
+
+/**
+ * The one line a discussion list shows for a conversation: its last answer, first line, plain.
+ * @param turns - the settled turns of the discussion.
+ * @returns that line, or undefined while no answer settled.
+ */
+export function lastAnswerLine(turns: readonly ZhihuDiscussionTurn[]): string | undefined {
+  const answer = turns.findLast(turn => turn.role === 'assistant')
+  const line = answer?.text.split('\n').map(part => part.trim()).find(part => part !== '')
+  if (line === undefined) return undefined
+  const plain = line.replace(/^[#>*\-\s]+/u, '')
+  return plain.length > DISCUSSION_LINE_LIMIT ? plain.slice(0, DISCUSSION_LINE_LIMIT) + '…' : plain
 }
 
 /** What the seat needs from the Session catalog. */

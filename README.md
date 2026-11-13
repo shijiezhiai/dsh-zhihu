@@ -66,7 +66,7 @@ Every setting has a default and is validated at load:
 | `remote.obsidianFolder` | `zhihu` | Vault folder that notes land in |
 | `remote.obsidianCredential` | `OBSIDIAN_API_KEY` | Credential ref holding the Obsidian key |
 
-What the reader gets: lanes for hot, recommendation, follow and search that page as you scroll and restore the lane you left, with the rows that are new, climbed or fell since that lane was last read marked beside them; a reader with right-click copy, and an export that files the item's whole discussion, question and answer in turn, under the note body and records a body the capture limit cut as frontmatter rather than a line in the note; a passage bubble that merges several blocks into one quote; and a Discussion segment that keeps one Session per item.
+What the reader gets: lanes for hot, recommendation, follow and search that page as you scroll and restore the lane you left, with the rows that are new, climbed or fell since that lane was last read marked beside them; a reader with right-click copy, and an export that files the item's whole discussion, question and answer in turn, under the note body and records a body the capture limit cut as frontmatter rather than a line in the note; a passage bubble that merges several blocks into one quote; a Discussion segment that keeps one Session per item; and a My discussions list that reopens any of them or files one away.
 
 -----
 
@@ -84,7 +84,7 @@ What the reader gets: lanes for hot, recommendation, follow and search that page
 | [`src/http/`](src/http/) | Credentialed provider: cookie, rate limit, Markdown and text extraction |
 | [`src/tool/`](src/tool/) | `zhihu_feed`, `zhihu_read`, `zhihu_search` and their rendering |
 | [`src/remote/`](src/remote/) | Authenticated Remote, Obsidian capture, panel projections |
-| [`src/client/`](src/client/) | Panel, reader, passage quoting, discussion segment, tool cards |
+| [`src/client/`](src/client/) | Panel, reader, passage quoting, discussion segment, discussion list, tool cards |
 | [`tests/`](tests/) | Provider, tool, Remote and client tests |
 
 </details>
@@ -147,7 +147,7 @@ Same as the other two: nothing in the declaration moves, and each page appends i
 <a id="known-limitations-and-deferred-work"></a>
 
 - The provider needs a signed-in cookie. Without it every tool call and every panel request answers 401, so the credential is a precondition rather than a fallback.
-- A discussion keeps one Session per item in the page's persisted state. Clearing site data forgets the mapping, and the next instruction opens a new Session instead of resuming the old one.
+- A discussion keeps one Session per item in the page's persisted state, and the My discussions list is that same record. Clearing site data forgets the mapping and empties the list, and the next instruction opens a new Session instead of resuming the old one.
 - Rank marks compare a lane against the rows that lane last listed, and both live in the same browser storage: clearing site data resets the marks, and a lane read for the first time marks nothing because it has nothing to compare against.
 - A passage question quotes the reader's rendered text, which is not the `contentText` the model reads, so a quote is capped at 1200 characters and a longer selection is cut.
 - An export files the discussion only while that item's Discussion segment is open in the panel; a discussion resumed later is not read back for the note.

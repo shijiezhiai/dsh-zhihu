@@ -16,6 +16,12 @@ declare module '@deepseek-ai/dsh-api-session-controller/client' {
     }
 }
 /**
+ * The copy key that names what kind of item a row is.
+ * @param kind - the row's kind.
+ * @returns the key of its label.
+ */
+export declare function zhihuKindKey(kind: ZhihuFeedRow['kind']): 'kind.question' | 'kind.answer' | 'kind.article';
+/**
  * Compose the instruction that opens or continues a discussion.
  *
  * The model reads the body itself, so the message carries the identity the
@@ -77,6 +83,14 @@ export interface ZhihuDiscussionTurn {
     /** The turn's text blocks, joined; reasoning and tool calls stay out. */
     readonly text: string;
 }
+/** Characters of an answer the discussion list keeps as its reminder. */
+export declare const DISCUSSION_LINE_LIMIT = 120;
+/**
+ * The one line a discussion list shows for a conversation: its last answer, first line, plain.
+ * @param turns - the settled turns of the discussion.
+ * @returns that line, or undefined while no answer settled.
+ */
+export declare function lastAnswerLine(turns: readonly ZhihuDiscussionTurn[]): string | undefined;
 /** What the seat needs from the Session catalog. */
 export type ZhihuDiscussionSessions = Pick<ISessions, 'create' | 'list' | 'retain'>;
 /**

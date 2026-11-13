@@ -5,6 +5,7 @@
  */
 import type { ZhihuFeedRow, ZhihuReadItem } from '@deepseek-ai/dsh-zhihu-plugin/types'
 import type { ZhihuTranslate } from './ZhihuContent.tsx'
+import { zhihuKindKey } from './zhihu-discussion.ts'
 
 /** Characters of the body carried into the draft; the rest stays behind its link. */
 export const ASK_BODY_LIMIT = 6000
@@ -50,13 +51,6 @@ export interface ZhihuAskTarget {
   ): void | Promise<void>
 }
 
-/** The row's kind, named by the copy that says what is being discussed. */
-const KIND_KEYS = {
-  answer: 'kind.answer',
-  article: 'kind.article',
-  question: 'kind.question',
-} as const
-
 /**
  * Picks the body a reader acts on: Markdown when the provider supplied one, plain text otherwise.
  * @param item - the read result, absent while the page holds only a row.
@@ -87,7 +81,7 @@ export function zhihuAskPrompt(
   const cut = body.length < full.length || (item?.contentTruncated ?? false)
   const author = item?.author ?? ''
   return [
-    t('ask.intro', { kind: t(KIND_KEYS[row.kind]) }),
+    t('ask.intro', { kind: t(zhihuKindKey(row.kind)) }),
     '',
     t('ask.title', { title: row.title }),
     ...(author === '' ? [] : [t('ask.author', { author })]),

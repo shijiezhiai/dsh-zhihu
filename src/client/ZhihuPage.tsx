@@ -16,6 +16,7 @@ import { copyZhihuText } from './zhihu-clipboard.ts'
 import type { ZhihuDetailAction, ZhihuDetailRegistry } from './zhihu-detail.ts'
 import {
   DISCUSSION_PANEL_TIMEOUT_MS,
+  lastAnswerLine,
   zhihuDiscussionPrompt,
   type ZhihuDiscussion,
   type ZhihuDiscussionSeat,
@@ -25,8 +26,16 @@ import { zhihuPanelFailureLine } from './zhihu-panel-failure.ts'
 import { readPassage, segmentsText, toggleSegment, zhihuQuotedInstruction, type ZhihuPassage } from './zhihu-quote.ts'
 import { ZhihuQuoteBox } from './ZhihuQuote.tsx'
 import type { ZhihuPageFace } from './zhihu-page-face.ts'
-import type { ZhihuFeedTab, ZhihuPageStore, ZhihuPageTab } from './zhihu-page-store.ts'
+import {
+  zhihuDiscussionEntry,
+  zhihuDiscussionSession,
+  type ZhihuDiscussionEntry,
+  type ZhihuFeedTab,
+  type ZhihuPageStore,
+  type ZhihuPageTab,
+} from './zhihu-page-store.ts'
 import { ZhihuOpenedContent, ZhihuRowList, type ZhihuOpenedRow, type ZhihuTranslate } from './ZhihuContent.tsx'
+import { ZhihuThreads, type ZhihuThread, type ZhihuThreadArchive } from './ZhihuThreads.tsx'
 import css from './ZhihuPage.module.css'
 
 /** The feeds that page; search is a lane of its own. */
@@ -320,12 +329,13 @@ function detailMenu(t: ZhihuTranslate, keycaps: (action: ZhihuDetailAction) => r
  * @returns the lane switch, the lane on screen, or the opened row.
  */
 export function ZhihuPage(
-  { face, t, details, keycaps, discussion, report, renderSlot, SessionProvider, useStore, actions }: {
+  { face, t, details, keycaps, discussion, archive, report, renderSlot, SessionProvider, useStore, actions }: {
     readonly face: ZhihuPageFace
     readonly t: ZhihuTranslate
     readonly details: ZhihuDetailRegistry
     readonly keycaps: (action: ZhihuDetailAction) => readonly string[]
     readonly discussion: ZhihuDiscussionSeat
+    readonly archive: ZhihuThreadArchive
     readonly report: (text: string) => void
   } & PropsStore<ZhihuPageStore> & PropsRenderSlots<'zhihu.discussion'>,
 ): ReactNode {
@@ -333,6 +343,8 @@ export function ZhihuPage(
   const query = useStore(state => state.query)
   const scrollTop = useStore(state => state.scrollTop)
   const [opened, setOpened] = useState<ZhihuOpenedRow | null>(null)
+  /** Whether the reader is looking at their discussions instead of the lanes. */
+  const [library, setLibrary] = useState(false)
   const [notice, setNotice] = useState<string | undefined>(undefined)
   const [menu, setMenu] = useState<MenuAt | undefined>(undefined)
   const [surface, setSurface] = useState<DetailSurface>('body')
@@ -343,6 +355,13 @@ export function ZhihuPage(
   const [waited, setWaited] = useState(0)
   // A state persisted before discussions existed restores without them, so a row simply has none.
   const discussions = useStore(state => state.discussions)
+  /** Every discussion the page still remembers, most recently opened first. */
+  const threads = useMemo(() => Object.entries(discussions ?? {})
+    .flatMap(([key, record]): ZhihuThread[] => {
+      const entry = zhihuDiscussionEntry(record)
+      return entry === undefined ? [] : [{ key, entry }]
+    })
+    .sort((left, right) => right.entry.openedAt - left.entry.openedAt), [discussions])
   // A state persisted before rank tracking existed restores without it, so the list marks nothing.
   const moves = useStore(state => state.moves)
   /** The discussion this panel holds a reference to; the Session outlives it. */
@@ -441,6 +460,10 @@ export function ZhihuPage(
   }, [])
 
   const close = useCallback(() => {
+    if (opened !== null && chat.status === 'ready' && chat.seat !== undefined) {
+      const line = lastAnswerLine(chat.seat.transcript())
+      if (line !== undefined) actions.noted(zhihuRowKey(opened.row), line)
+    }
     opening.current += 1
     setNotice(undefined)
     setMenu(undefined)
@@ -449,7 +472,7 @@ export function ZhihuPage(
     setQuote(undefined)
     setChat({ status: 'idle' })
     release()
-  }, [release])
+  }, [actions, chat, opened, release])
 
   // A panel that closes mid-discussion still lets go of its Session reference.
   useEffect(() => release, [release])
@@ -471,7 +494,7 @@ export function ZhihuPage(
    */
   const discuss = useCallback(async (row: ZhihuFeedRow): Promise<ZhihuDiscussion | undefined> => {
     const key = zhihuRowKey(row)
-    const known = discussions?.[key]
+    const known = zhihuDiscussionSession(discussions?.[key])
     setNotice(undefined)
     setSurface('discussion')
     setChat({ status: 'opening' })
@@ -479,7 +502,7 @@ export function ZhihuPage(
       const next = await discussion.open(row, known)
       release()
       held.current = next
-      if (known === undefined) actions.remember(key, next.reference.sessionId)
+      actions.remember(key, { sessionId: next.reference.sessionId, row, openedAt: Date.now() })
       setChat({ status: 'ready', seat: next })
       return next
     } catch (error) {
@@ -488,6 +511,21 @@ export function ZhihuPage(
       return undefined
     }
   }, [actions, discussion, discussions, release])
+
+  /** Reopen the row a listed discussion was about, straight on its conversation. */
+  const resume = useCallback((entry: ZhihuDiscussionEntry): void => {
+    setLibrary(false)
+    read(entry.row)
+    void discuss(entry.row)
+  }, [discuss, read])
+
+  /** File one discussion's Session away, so it leaves the page's list with it. */
+  const archiveThread = useCallback((thread: ZhihuThread): void => {
+    setNotice(undefined)
+    void archive(thread.entry.sessionId).then(() => { actions.forgot(thread.key) }, () => {
+      setNotice(t('threads.archiveFailed'))
+    })
+  }, [actions, archive, t])
 
   /** Send one instruction into the open discussion. */
   const instruct = useCallback((seat: ZhihuDiscussion, row: ZhihuFeedRow, instruction: string): void => {
@@ -726,6 +764,19 @@ export function ZhihuPage(
     )
   }
 
+  if (library) {
+    return (
+      <section className={css.page} data-surface="threads">
+        <div className={css.header}>
+          <Button variant="outline" size="sm" onClick={() => { setLibrary(false) }}>{t('panel.back')}</Button>
+          <h2 className={css.title}>{t('threads.title')}</h2>
+        </div>
+        {notice !== undefined && <p className={css.notice} role="status">{notice}</p>}
+        <ZhihuThreads threads={threads} t={t} onOpen={resume} onArchive={archiveThread} />
+      </section>
+    )
+  }
+
   const options: readonly SegmentedControlOption<PageTab>[] = LANES.map(kind => ({
     value: kind,
     label: t(TAB_KEYS[kind]),
@@ -750,6 +801,7 @@ export function ZhihuPage(
             {t('panel.refresh')}
           </Button>
         )}
+        <Button variant="ghost" size="sm" onClick={() => { setLibrary(true) }}>{t('threads.title')}</Button>
       </div>
       {tab === 'search' && (
         <form
@@ -809,6 +861,7 @@ export function ZhihuPage(
  * @param details - the registry the open row is published into for its shortcuts.
  * @param keycaps - the effective key labels of one action's command.
  * @param discussion - the seat that opens and instructs the open row's conversation.
+ * @param archive - files a discussion's Session away when the reader finishes with it.
  * @param report - announces an outcome on the shell overlay, where the reader is looking.
  * @returns the component the `main` seat renders, over the page store that registration declares.
  */
@@ -817,6 +870,7 @@ export function zhihuPageFor(
   details: ZhihuDetailRegistry,
   keycaps: (action: ZhihuDetailAction) => readonly string[],
   discussion: ZhihuDiscussionSeat,
+  archive: ZhihuThreadArchive,
   report: (text: string) => void,
 ): (
   props: PropsRuntime<'main'> & PropsLocale<'zhihu'> & PropsStore<ZhihuPageStore> & PropsRenderSlots<'zhihu.discussion'>,
@@ -824,7 +878,7 @@ export function zhihuPageFor(
   return function ZhihuMainPage({ t, useStore, actions, renderSlot, SessionProvider }) {
     return (
       <ZhihuPage
-        face={face} t={t} details={details} keycaps={keycaps} discussion={discussion} report={report}
+        face={face} t={t} details={details} keycaps={keycaps} discussion={discussion} archive={archive} report={report}
         renderSlot={renderSlot} SessionProvider={SessionProvider}
         useStore={useStore} actions={actions}
       />
