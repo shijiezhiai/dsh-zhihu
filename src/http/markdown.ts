@@ -63,7 +63,7 @@ const HARD_BREAK = '\\\n'
 /**
  * Convert one Zhihu rich-text fragment into GitHub-flavored Markdown.
  * @param html - the `content` field of a Zhihu payload.
- * @returns Markdown keeping headings, emphasis, lists, links, images, formulas, and fenced code.
+ * @returns Markdown keeping headings, emphasis, lists, tables, links, images, formulas, and fenced code.
  */
 export function toMarkdown(html: string): string {
   const nodes = parse(html.replace(INERT, '').replace(COMMENT, ''))

@@ -128,7 +128,9 @@ export async function putNote(target: ObsidianTarget, path: string, text: string
       outgoing.destroy(new ObsidianError(`Obsidian did not answer within 10s at ${target.url}`))
     })
     /* v8 ignore stop */
-    outgoing.on('error', (error) => { reject(new ObsidianError(`cannot reach Obsidian at ${target.url}`, { cause: error })) })
+    outgoing.on('error', (error) => {
+      reject(new ObsidianError(`cannot reach Obsidian at ${target.url}: ${error.message}`, { cause: error }))
+    })
     outgoing.end(text)
   })
   if (status !== 200 && status !== 201 && status !== 204) {

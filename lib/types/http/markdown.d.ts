@@ -11,7 +11,7 @@
 /**
  * Convert one Zhihu rich-text fragment into GitHub-flavored Markdown.
  * @param html - the `content` field of a Zhihu payload.
- * @returns Markdown keeping headings, emphasis, lists, links, images, formulas, and fenced code.
+ * @returns Markdown keeping headings, emphasis, lists, tables, links, images, formulas, and fenced code.
  */
 export declare function toMarkdown(html: string): string;
 //# sourceMappingURL=markdown.d.ts.map

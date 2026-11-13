@@ -328,6 +328,16 @@ function detailMenu(t: ZhihuTranslate, keycaps: (action: ZhihuDetailAction) => r
  * @param props.actions - the page store's write seat.
  * @returns the lane switch, the lane on screen, or the opened row.
  */
+/**
+ * Name the cause of a refused export, so the reader gets more than "it did not work".
+ * @param message - the diagnostic the Host sent, or an empty string when it sent none.
+ * @param t - the page's translate seat.
+ * @returns the diagnostic, or the generic line when the Host named no cause.
+ */
+function exportReason(message: string, t: ZhihuTranslate): string {
+  return message.trim() === '' ? t('panel.failure.generic') : message
+}
+
 export function ZhihuPage(
   { face, t, details, keycaps, discussion, archive, report, renderSlot, SessionProvider, useStore, actions }: {
     readonly face: ZhihuPageFace
@@ -612,13 +622,18 @@ export function ZhihuPage(
             ...(item === undefined || item.author === '' ? {} : { author: item.author }),
             ...(filed === undefined ? {} : { discussion: filed }),
           }).then((result) => {
-            const line = result.ok ? t('notice.exported', { path: result.value.path }) : t('notice.exportFailed')
+            const line = result.ok
+              ? t('notice.exported', { path: result.value.path })
+              : t('notice.exportFailed', { reason: exportReason(result.failure.message, t) })
             setNotice(line)
             report(line)
-          }, () => {
+          }, (error: unknown) => {
             // A Remote that never answered leaves the reader with a click and no note; say so.
-            setNotice(t('notice.exportFailed'))
-            report(t('notice.exportFailed'))
+            const line = t('notice.exportFailed', {
+              reason: error instanceof Error ? exportReason(error.message, t) : t('panel.failure.generic'),
+            })
+            setNotice(line)
+            report(line)
           })
           return
         }
