@@ -58,6 +58,7 @@ export declare const en: {
     'menu.copyTitle': string;
     'menu.copyLink': string;
     'menu.copyBody': string;
+    'menu.copySelection': string;
     'menu.export': string;
     'notice.copied': string;
     'notice.copyFailed': string;
@@ -70,6 +71,7 @@ export declare const en: {
     'shortcut.copyTitle': string;
     'shortcut.copyLink': string;
     'shortcut.copyBody': string;
+    'shortcut.copySelection': string;
     'shortcut.openOriginal': string;
     'shortcut.export': string;
     'shortcut.ask': string;

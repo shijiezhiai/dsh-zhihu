@@ -309,10 +309,22 @@ function useSearchLane(face: ZhihuPageFace, useStore: PageSelector, actions: Pag
  * Obsidian capture, and the way back to the list.
  * @param t - copy of the Zhihu namespace.
  * @param keycaps - the effective key labels of one action's command.
+ * @param hasSelection - whether the reader had text selected where they right-clicked.
  * @returns the rows the menu draws.
  */
-function detailMenu(t: ZhihuTranslate, keycaps: (action: ZhihuDetailAction) => readonly string[]): readonly MenuEntry[] {
+function detailMenu(
+  t: ZhihuTranslate,
+  keycaps: (action: ZhihuDetailAction) => readonly string[],
+  hasSelection: boolean,
+): readonly MenuEntry[] {
   return [
+    {
+      id: 'copySelection',
+      label: t('menu.copySelection'),
+      // The row names what the reader pointed at, so it stays visible and says why it is unavailable.
+      disabled: !hasSelection,
+      shortcut: { keys: keycaps('copySelection') },
+    },
     { id: 'copyTitle', label: t('menu.copyTitle'), shortcut: { keys: keycaps('copyTitle') } },
     { id: 'copyLink', label: t('menu.copyLink'), shortcut: { keys: keycaps('copyLink') } },
     { id: 'copyBody', label: t('menu.copyBody'), shortcut: { keys: keycaps('copyBody') } },
@@ -395,6 +407,11 @@ export function ZhihuPage(
   const [library, setLibrary] = useState(false)
   const [notice, setNotice] = useState<string | undefined>(undefined)
   const [menu, setMenu] = useState<MenuAt | undefined>(undefined)
+  /**
+   * The text the reader had selected when they opened the menu. Clicking a row
+   * collapses the selection in some shells, so the menu keeps its own copy.
+   */
+  const [selection, setSelection] = useState('')
   const [surface, setSurface] = useState<DetailSurface>('body')
   /** The passage the reader pointed at, while its bubble is up. */
   const [quote, setQuote] = useState<ZhihuQuote | undefined>(undefined)
@@ -680,6 +697,12 @@ export function ZhihuPage(
     const item = opened.status === 'ready' ? opened.item : undefined
     return (action: ZhihuDetailAction): void => {
       switch (action) {
+        case 'copySelection': {
+          const live = window.getSelection()?.toString().trim() ?? ''
+          const text = live === '' ? selection.trim() : live
+          setNotice(copyZhihuText(text) ? t('notice.copied') : t('notice.copyFailed'))
+          return
+        }
         case 'copyTitle':
           setNotice(copyZhihuText(row.title) ? t('notice.copied') : t('notice.copyFailed'))
           return
@@ -729,7 +752,7 @@ export function ZhihuPage(
           return
       }
     }
-  }, [close, conclusion, discuss, face, opened, report, t])
+  }, [close, conclusion, discuss, face, opened, report, selection, t])
 
   // While a row is open its actions are this page's; the shortcut commands run through the same handle.
   useEffect(() => (runAction === undefined ? undefined : details.attach({ run: runAction })), [details, runAction])
@@ -784,6 +807,7 @@ export function ZhihuPage(
         data-surface="opened"
         onContextMenu={(event) => {
           event.preventDefault()
+          setSelection(window.getSelection()?.toString() ?? '')
           setMenu({ x: event.clientX, y: event.clientY })
         }}
       >
@@ -867,7 +891,7 @@ export function ZhihuPage(
           open={menu !== undefined}
           portal
           anchor={null}
-          items={detailMenu(t, keycaps)}
+          items={detailMenu(t, keycaps, selection.trim() !== '')}
           getAnchorRect={() => menuRect}
           onSelect={(id) => {
             setMenu(undefined)

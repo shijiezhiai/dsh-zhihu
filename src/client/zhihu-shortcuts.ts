@@ -12,9 +12,10 @@ import { zhihuShortcutId, type ZhihuDetailAction, type ZhihuDetailRegistry } fro
 
 /** One action, its default physical key, and the copy that names it in the catalog. */
 const COMMANDS: readonly { readonly action: ZhihuDetailAction; readonly code: string; readonly label: ZhihuKey }[] = [
+  { action: 'copySelection', code: 'KeyC', label: 'shortcut.copySelection' },
   { action: 'copyTitle', code: 'KeyT', label: 'shortcut.copyTitle' },
   { action: 'copyLink', code: 'KeyL', label: 'shortcut.copyLink' },
-  // KeyC is reserved for copying the selection, and KeyB already toggles the right sidebar.
+  // KeyB already toggles the right sidebar, so the body copy takes the next free letter.
   { action: 'copyBody', code: 'KeyG', label: 'shortcut.copyBody' },
   { action: 'openOriginal', code: 'KeyP', label: 'shortcut.openOriginal' },
   { action: 'export', code: 'KeyE', label: 'shortcut.export' },
