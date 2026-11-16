@@ -2,6 +2,12 @@
 
 Every tag publishes the prebuilt tarball the plugin-market entry installs, at `https://github.com/shijiezhiai/dsh-zhihu/releases/download/v<version>/dsh-zhihu.tgz`; the asset name stays `dsh-zhihu.tgz`, so a version is identified by its URL.
 
+## 1.3.2
+
+### Added
+
+- The follow lane counts what arrived since its last read, above them and under a dividing line, because that lane ranks nothing and a per-row mark would only say "new" on every row. A lane read for the first time counts nothing, and the ranked lanes keep their per-row new, climbed and fell marks.
+
 ## 1.3.1
 
 ### Added

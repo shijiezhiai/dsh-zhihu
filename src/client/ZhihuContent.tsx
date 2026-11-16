@@ -1,7 +1,7 @@
 // Shared Zhihu content pieces: the untrusted-content notice, one feed list, and
 // one opened row. The right Sidebar tab and the full page render the same
 // markup, so a row reads the same wherever it is opened.
-import { useMemo } from 'react'
+import { Fragment, useMemo } from 'react'
 import type { ReactNode } from 'react'
 import { Button, MarkdownText, Tag } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { MarkdownLabels } from '@deepseek-ai/dsh-client-ui-primitives'
@@ -71,41 +71,56 @@ function ZhihuRankTag({ move, t }: { readonly move: ZhihuRankMove; readonly t: Z
  * @param props.t - copy of the Zhihu namespace.
  * @param props.onOpen - called with the row a reader picks.
  * @param props.moves - the marks the lane's latest read left; omitted where nothing ranks a lane.
+ * @param props.counted - whether the rows that arrived since the previous read are counted above
+ *   them. A stream lane has no position to mark, so its new arrivals are what the reader needs.
  * @returns the notice, an empty state, or the row list.
  */
-export function ZhihuRowList({ rows, t, onOpen, moves }: {
+export function ZhihuRowList({ rows, t, onOpen, moves, counted = false }: {
   readonly rows: readonly ZhihuFeedRow[]
   readonly t: ZhihuTranslate
   readonly onOpen: (row: ZhihuFeedRow) => void
   readonly moves?: Readonly<Record<string, ZhihuRankMove>> | undefined
+  readonly counted?: boolean
 }): ReactNode {
   if (rows.length === 0) return <p className={css.state}>{t('list.empty')}</p>
+  // Only the leading run is counted: a row that turns up further down keeps its own mark instead
+  // of pulling the dividing line somewhere the reader would not expect it.
+  let arrived = 0
+  if (counted && moves !== undefined) {
+    while (arrived < rows.length) {
+      const row = rows[arrived]
+      if (row === undefined || moves[zhihuRowKey(row)]?.kind !== 'new') break
+      arrived += 1
+    }
+  }
   return (
     <>
       <p className={css.notice}>{t('panel.untrusted')}</p>
       <ol className={css.list}>
-        {rows.map((row) => {
+        {rows.map((row, index) => {
           const move = moves?.[zhihuRowKey(row)]
           return (
-            <li
-              key={zhihuRowKey(row)}
-              className={css.row}
-            >
-              <button
-                type="button"
-                className={css.rowTitle}
-                onClick={() => { onOpen(row) }}
-              >
-                {row.title}
-              </button>
-              <span className={css.excerpt}>{row.excerpt}</span>
-              {(move !== undefined || row.heatLabel !== undefined) && (
-                <span className={css.meta}>
-                  {move !== undefined && <ZhihuRankTag move={move} t={t} />}
-                  {row.heatLabel !== undefined && <span className={css.heat}>{row.heatLabel}</span>}
-                </span>
+            <Fragment key={zhihuRowKey(row)}>
+              <li className={css.row}>
+                <button
+                  type="button"
+                  className={css.rowTitle}
+                  onClick={() => { onOpen(row) }}
+                >
+                  {row.title}
+                </button>
+                <span className={css.excerpt}>{row.excerpt}</span>
+                {(move !== undefined || row.heatLabel !== undefined) && (
+                  <span className={css.meta}>
+                    {move !== undefined && <ZhihuRankTag move={move} t={t} />}
+                    {row.heatLabel !== undefined && <span className={css.heat}>{row.heatLabel}</span>}
+                  </span>
+                )}
+              </li>
+              {index + 1 === arrived && (
+                <li className={css.divider}>{t('list.arrived', { count: arrived })}</li>
               )}
-            </li>
+            </Fragment>
           )
         })}
       </ol>

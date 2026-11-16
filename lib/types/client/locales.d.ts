@@ -16,6 +16,7 @@ export declare const en: {
     'list.countOne': string;
     'list.truncated': string;
     'list.empty': string;
+    'list.arrived': string;
     'rank.new': string;
     'rank.up': string;
     'rank.down': string;

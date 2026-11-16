@@ -35,13 +35,16 @@ export type ZhihuOpenedRow<R extends ZhihuFeedRow = ZhihuFeedRow> = {
  * @param props.t - copy of the Zhihu namespace.
  * @param props.onOpen - called with the row a reader picks.
  * @param props.moves - the marks the lane's latest read left; omitted where nothing ranks a lane.
+ * @param props.counted - whether the rows that arrived since the previous read are counted above
+ *   them. A stream lane has no position to mark, so its new arrivals are what the reader needs.
  * @returns the notice, an empty state, or the row list.
  */
-export declare function ZhihuRowList({ rows, t, onOpen, moves }: {
+export declare function ZhihuRowList({ rows, t, onOpen, moves, counted }: {
     readonly rows: readonly ZhihuFeedRow[];
     readonly t: ZhihuTranslate;
     readonly onOpen: (row: ZhihuFeedRow) => void;
     readonly moves?: Readonly<Record<string, ZhihuRankMove>> | undefined;
+    readonly counted?: boolean;
 }): ReactNode;
 /**
  * Render one opened row: its title, body, author line, and the refusal path.

@@ -978,7 +978,13 @@ export function ZhihuPage(
           </div>
         )}
         {page.status === 'ready' && (
-          <ZhihuRowList rows={rows} t={t} onOpen={read} moves={tab === 'search' ? undefined : moves?.[tab]} />
+          <ZhihuRowList
+            rows={rows}
+            t={t}
+            onOpen={read}
+            moves={tab === 'search' ? undefined : moves?.[tab]}
+            counted={tab === 'follow'}
+          />
         )}
         {page.status === 'ready' && rows.length > 0 && (
           <p className={css.footer}>
