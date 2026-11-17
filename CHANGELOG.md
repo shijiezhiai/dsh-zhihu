@@ -2,6 +2,12 @@
 
 Every tag publishes the prebuilt tarball the plugin-market entry installs, at `https://github.com/shijiezhiai/dsh-zhihu/releases/download/v<version>/dsh-zhihu.tgz`; the asset name stays `dsh-zhihu.tgz`, so a version is identified by its URL.
 
+## 1.3.6
+
+### Changed
+
+- A search hit that is an article now says it needs its title too, matching what the feed already says; the id alone reads it as a question or answer.
+
 ## 1.3.5
 
 ### Changed
