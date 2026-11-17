@@ -104,7 +104,7 @@ What the reader gets: lanes for hot, recommendation, follow and search that page
 
 #### What the model sees
 
-`zhihu_feed` is declared once per Session of a profile that enables the plugin, with `kind` (`hot`, `recommend`, `follow`) and `limit`. A call returns the untrusted-content notice, a labelled list with one link per entry, and a follow-up that names `zhihu_read` for the entry the model picks. Excerpts are cut at `tool.excerptMaxChars`, and a failure carries its reason instead of rows.
+`zhihu_feed` is declared once per Session of a profile that enables the plugin, with `kind` (`hot`, `recommend`, `follow`) and `limit`. A call returns the untrusted-content notice, a labelled list with one link per entry, and a follow-up that names `zhihu_read` for the entry the model picks; every row is readable that way, and an article row needs its id plus the title its own line shows. Excerpts are cut at `tool.excerptMaxChars`, and a failure carries its reason instead of rows.
 
 #### Token effect
 
