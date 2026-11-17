@@ -18,6 +18,8 @@ export interface ZhihuHttpProviderOptions {
     readonly maxFeedPages: number;
     /** Answers requested when a question read omits `answerLimit`. */
     readonly answerLimit: number;
+    /** Pages one ordered or windowed search may read before it answers its slice. */
+    readonly searchScanPages: number;
 }
 /** The Zhihu HTTP provider, registered into `ctx.zhihu`. */
 export declare class ZhihuHttpProvider implements ZhihuProvider {
@@ -56,11 +58,23 @@ export declare class ZhihuHttpProvider implements ZhihuProvider {
      */
     read(request: ZhihuReadRequest): Promise<ZhihuReadResult>;
     /**
-     * Search Zhihu content, dropping every non-content entry.
-     * @param request - the query, an optional hit limit, and an optional continuation token.
-     * @returns one page of hits, with the token that continues after the entries it consumed.
+     * Search Zhihu content, dropping every non-content entry. The endpoint answers one
+     * relevance-ordered page and ignores every sort and date parameter, so an order or a window is
+     * computed here from several pages of entries.
+     * @param request - the query, an optional hit limit, an optional continuation token, and the
+     *   order and time window the hits must satisfy.
+     * @returns one page of hits; an ordered or windowed search answers a slice with no token,
+     *   because a continuation would interleave with the order it imposed.
      */
     search(request: ZhihuSearchRequest): Promise<ZhihuSearchPage>;
+    /**
+     * Read search entries across the configured page budget. An order or a window needs more than
+     * the single relevance-ordered page the endpoint answers, or it would have nothing to choose
+     * from.
+     * @param query - search text.
+     * @returns every entry read, promos included, in the order the endpoint answered.
+     */
+    private scanSearch;
     /**
      * Request raw search entries. Only the search endpoint returns an article body: the article-detail
      * endpoint answers 403 `code:10003` without the page signature, so an article is read through the

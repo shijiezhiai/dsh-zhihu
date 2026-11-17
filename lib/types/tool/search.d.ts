@@ -5,7 +5,7 @@
  * @module @deepseek-ai/dsh-zhihu-plugin/tool/search
  */
 import type { Context } from '@deepseek-ai/cordis';
-import type { ZhihuSearchHit } from '../service/index.ts';
+import type { ZhihuSearchHit, ZhihuSearchSort, ZhihuSearchTimeWindow } from '../service/index.ts';
 import type { GenericCallView, GenericResultView, ToolResult } from '@deepseek-ai/dsh-tools';
 import type { JsonValue } from '@deepseek-ai/dsh-util-values';
 import type { ZhihuToolLimits } from './shared.ts';
@@ -23,6 +23,8 @@ export interface ZhihuSearchItemValue {
     readonly excerpt: string;
     /** Canonical URL of the hit. */
     readonly url: string;
+    /** Creation time in epoch seconds; absent when the payload carried none. */
+    readonly createdTime?: number;
 }
 /** The search tool's canonical output value. */
 export interface ZhihuSearchValue {
@@ -32,6 +34,10 @@ export interface ZhihuSearchValue {
     readonly query: string;
     /** The limit this call requested, after clamping. */
     readonly limit: number;
+    /** The order the hits came back in. */
+    readonly sort: ZhihuSearchSort;
+    /** The window the hits were limited to; absent when the search had none. */
+    readonly timeWindow?: ZhihuSearchTimeWindow;
     /** Returned hits, in provider order. */
     readonly items: readonly ZhihuSearchItemValue[];
     /** True when the search reached the requested limit, so more hits may exist. */

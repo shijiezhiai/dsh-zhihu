@@ -9,7 +9,7 @@ import { Context, Service, type Volatile } from '@deepseek-ai/cordis';
 import z from '@deepseek-ai/schemastery';
 import { HarnessError } from '@deepseek-ai/dsh-llm';
 import type { ZhihuErrorCode, ZhihuFeedPage, ZhihuFeedRequest, ZhihuProvider, ZhihuReadRequest, ZhihuReadResult, ZhihuSearchPage, ZhihuSearchRequest } from './types.ts';
-export type { ZhihuContentKind, ZhihuErrorCode, ZhihuFeedItem, ZhihuFeedKind, ZhihuFeedPage, ZhihuFeedRequest, ZhihuProvider, ZhihuReadKind, ZhihuReadRequest, ZhihuReadResult, ZhihuSearchHit, ZhihuSearchPage, ZhihuSearchRequest, } from './types.ts';
+export type { ZhihuContentKind, ZhihuErrorCode, ZhihuFeedItem, ZhihuFeedKind, ZhihuFeedPage, ZhihuFeedRequest, ZhihuProvider, ZhihuReadKind, ZhihuReadRequest, ZhihuReadResult, ZhihuSearchHit, ZhihuSearchPage, ZhihuSearchRequest, ZhihuSearchSort, ZhihuSearchTimeWindow, } from './types.ts';
 /**
  * Failure raised by the seam or by a provider. `code` is the machine-readable discriminant; every
  * message is free of credential material, so it is safe to log and to show a model.

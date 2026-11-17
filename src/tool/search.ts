@@ -6,7 +6,7 @@
  */
 
 import type { Context } from '@deepseek-ai/cordis'
-import type { ZhihuSearchHit, ZhihuSearchPage } from '../service/index.ts'
+import type { ZhihuSearchHit, ZhihuSearchPage, ZhihuSearchSort, ZhihuSearchTimeWindow } from '../service/index.ts'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { GenericCallView, GenericResultView, ToolResult } from '@deepseek-ai/dsh-tools'
 import type { JsonValue } from '@deepseek-ai/dsh-util-values'
@@ -28,6 +28,8 @@ export interface ZhihuSearchItemValue {
   readonly excerpt: string
   /** Canonical URL of the hit. */
   readonly url: string
+  /** Creation time in epoch seconds; absent when the payload carried none. */
+  readonly createdTime?: number
 }
 
 /** The search tool's canonical output value. */
@@ -38,6 +40,10 @@ export interface ZhihuSearchValue {
   readonly query: string
   /** The limit this call requested, after clamping. */
   readonly limit: number
+  /** The order the hits came back in. */
+  readonly sort: ZhihuSearchSort
+  /** The window the hits were limited to; absent when the search had none. */
+  readonly timeWindow?: ZhihuSearchTimeWindow
   /** Returned hits, in provider order. */
   readonly items: readonly ZhihuSearchItemValue[]
   /** True when the search reached the requested limit, so more hits may exist. */
@@ -64,7 +70,13 @@ export type ZhihuSearchMeta = {
   truncated: boolean
 }
 
-const SEARCH_DESCRIPTION = 'Search inside Zhihu for questions, answers, and articles matching a query, and return hits whose ids zhihu_read accepts. Use it for Zhihu discussions; other sites need web_search, and web_fetch cannot retrieve Zhihu content because Zhihu answers 403 or a risk-control challenge page. Ids are decimal strings of varying length; a long one loses precision if treated as a number, so pass it back exactly as returned. Zhihu content needs the account\'s login state. Failures name their cause: ZHIHU_LOGIN_REQUIRED means no Zhihu cookie is stored, ZHIHU_RATE_LIMITED means the calls are too frequent, and ZHIHU_BLOCKED means a verification challenge is pending. Report the cause instead of repeating the same call.'
+/** Orders `zhihu_search` accepts, in the order its schema lists them. */
+const SEARCH_SORTS: readonly ZhihuSearchSort[] = ['relevance', 'newest', 'top']
+
+/** Time windows `zhihu_search` accepts, in the order its schema lists them. */
+const SEARCH_TIME_WINDOWS: readonly ZhihuSearchTimeWindow[] = ['day', 'week', 'month', 'year']
+
+const SEARCH_DESCRIPTION = 'Search inside Zhihu for questions, answers, and articles matching a query, and return hits whose ids zhihu_read accepts. Use it for Zhihu discussions; other sites need web_search, and web_fetch cannot retrieve Zhihu content because Zhihu answers 403 or a risk-control challenge page. Ids are decimal strings of varying length; a long one loses precision if treated as a number, so pass it back exactly as returned. Zhihu content needs the account\'s login state. Failures name their cause: ZHIHU_LOGIN_REQUIRED means no Zhihu cookie is stored, ZHIHU_RATE_LIMITED means the calls are too frequent, and ZHIHU_BLOCKED means a verification challenge is pending. Report the cause instead of repeating the same call. Pass sort to order the hits and timeWindow to keep only recent ones: an ordered or windowed search reads several pages and answers one slice, and every dated hit shows its creation date.'
 
 /**
  * Project one seam hit into the canonical value, bounding the excerpt so the
@@ -80,6 +92,7 @@ export function projectSearchHit(hit: ZhihuSearchHit, excerptMaxChars: number): 
     title: hit.title,
     excerpt: boundText(hit.excerpt, excerptMaxChars),
     url: hit.url,
+    ...(hit.createdTime === undefined ? {} : { createdTime: hit.createdTime }),
   }
 }
 
@@ -112,20 +125,47 @@ export function searchMeta(value: ZhihuSearchValue): JsonValue {
  * @returns the model-facing text.
  */
 export function formatSearchOutput(value: ZhihuSearchValue): string {
+  const window = value.timeWindow === undefined ? '' : `created within the last ${value.timeWindow}`
+  const scope = ['limit ' + String(value.limit), value.sort === 'relevance' ? '' : value.sort + ' first', window]
+    .filter(part => part.length > 0)
+    .join(', ')
   const body = value.items.length === 0
-    ? 'No hits.'
-    : value.items.map(item => formatEntryLine(item)).join('\n')
+    ? `No hits${window === '' ? '' : ' ' + window}.`
+    : value.items.map(item => formatEntryLine({
+      kind: item.kind,
+      id: item.id,
+      title: item.title,
+      excerpt: item.excerpt,
+      url: item.url,
+      ...(item.createdTime === undefined ? {} : { dateLabel: formatDay(item.createdTime) }),
+    })).join('\n')
   const notes = [
     ...(value.truncated ? [`Showing the first ${value.items.length} hits; refine the query for a different slice.`] : []),
     ...(value.cursor === undefined ? [] : [`More hits follow: repeat this call with cursor="${value.cursor}".`]),
+    ...(value.sort === 'relevance' && value.timeWindow === undefined
+      ? []
+      : ['An ordered or windowed search reads several pages and answers one slice, so it returns no cursor; refine the query to reach other hits.']),
     'Pass a hit\'s id to zhihu_read to read that question or answer in full. An article hit needs its title too, copied exactly as its line shows it.',
   ]
   return [
     ZHIHU_UNTRUSTED_CONTENT_NOTICE,
-    `Zhihu search results for "${value.query}" (limit ${value.limit}):\n\n${body}`,
+    `Zhihu search results for "${value.query}" (${scope}):\n\n${body}`,
     notes.join('\n'),
   ].join('\n\n')
 }
+
+/**
+ * Render a creation time as the calendar date a reader compares against a time window.
+ * @param createdTime - creation time in epoch seconds.
+ * @returns the date as `YYYY-MM-DD` in the host's zone.
+ */
+function formatDay(createdTime: number): string {
+  const date = new Date(createdTime * 1_000)
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${date.getFullYear()}-${month}-${day}`
+}
+
 
 /**
  * Title one search card; malformed replay arguments fall back to the generic
@@ -184,7 +224,17 @@ export function applyZhihuSearchTool(ctx: Context, limits: ZhihuToolLimits): voi
       },
       cursor: {
         type: 'string',
-        description: 'Continuation token from a previous call\'s cursor, to read the next page of the same query. Omit for the first page.',
+        description: 'Continuation token from a previous call\'s cursor, to read the next page of the same query. Omit for the first page. A call that sets sort or timeWindow returns no cursor.',
+      },
+      sort: {
+        type: 'string',
+        enum: SEARCH_SORTS,
+        description: 'Order of the hits: relevance keeps Zhihu\'s own order, newest puts the latest first, and top puts the most upvoted first. Omitted keeps relevance.',
+      },
+      timeWindow: {
+        type: 'string',
+        enum: SEARCH_TIME_WINDOWS,
+        description: 'Keep only hits created within this window, measured from now. Omitted keeps every age.',
       },
     },
     output: {
@@ -195,6 +245,8 @@ export function applyZhihuSearchTool(ctx: Context, limits: ZhihuToolLimits): voi
           kind: { type: 'string', required: true, enum: ['search'] },
           query: { type: 'string', required: true },
           limit: { type: 'number', required: true },
+          sort: { type: 'string', required: true, enum: ['relevance', 'newest', 'top'] },
+          timeWindow: { type: 'string', enum: ['day', 'week', 'month', 'year'] },
           items: {
             type: 'array',
             required: true,
@@ -207,6 +259,7 @@ export function applyZhihuSearchTool(ctx: Context, limits: ZhihuToolLimits): voi
                 title: { type: 'string', required: true },
                 excerpt: { type: 'string', required: true },
                 url: { type: 'string', required: true },
+                createdTime: { type: 'number' },
               },
             },
           },
@@ -224,9 +277,17 @@ export function applyZhihuSearchTool(ctx: Context, limits: ZhihuToolLimits): voi
       const query = requireText(args.query, 'query')
       const limit = resolveLimit(args.limit, 'limit', maxItems)
       const cursor = typeof args.cursor === 'string' && args.cursor.trim() !== '' ? args.cursor.trim() : undefined
+      const sort = SEARCH_SORTS.find(candidate => candidate === args.sort) ?? 'relevance'
+      const timeWindow = SEARCH_TIME_WINDOWS.find(candidate => candidate === args.timeWindow)
       let page: ZhihuSearchPage
       try {
-        page = await ctx.zhihu.search({ query, limit, ...(cursor === undefined ? {} : { cursor }) })
+        page = await ctx.zhihu.search({
+          query,
+          limit,
+          ...(cursor === undefined ? {} : { cursor }),
+          ...(sort === 'relevance' ? {} : { sort }),
+          ...(timeWindow === undefined ? {} : { timeWindow }),
+        })
       } catch (error) {
         throw new Error(describeZhihuFailure(error), { cause: error })
       }
@@ -234,6 +295,8 @@ export function applyZhihuSearchTool(ctx: Context, limits: ZhihuToolLimits): voi
         kind: 'search' as const,
         query,
         limit,
+        sort,
+        ...(timeWindow === undefined ? {} : { timeWindow }),
         items: page.items.map(hit => projectSearchHit(hit, excerptMaxChars)),
         truncated: page.items.length >= limit,
         ...(page.cursor === undefined ? {} : { cursor: page.cursor }),

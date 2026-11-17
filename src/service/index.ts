@@ -34,6 +34,8 @@ export type {
   ZhihuSearchHit,
   ZhihuSearchPage,
   ZhihuSearchRequest,
+  ZhihuSearchSort,
+  ZhihuSearchTimeWindow,
 } from './types.ts'
 
 /**

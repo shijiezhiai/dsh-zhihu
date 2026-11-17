@@ -24,6 +24,8 @@ export interface ZhihuEntryFacts {
     readonly excerpt: string;
     /** Provider heat label, when the entry carries one. */
     readonly heatLabel?: string;
+    /** Publication date as `YYYY-MM-DD`, when the caller knows one. */
+    readonly dateLabel?: string;
     /** Canonical URL of the entry. */
     readonly url: string;
 }

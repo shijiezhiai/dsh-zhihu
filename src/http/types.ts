@@ -135,6 +135,8 @@ export interface ZhihuSearchObject {
   readonly content?: string
   /** Upvote count. */
   readonly voteup_count?: number
+  /** Creation time in epoch seconds. */
+  readonly created_time?: number
   /** Author. */
   readonly author?: { readonly name?: string }
 }

@@ -118,6 +118,12 @@ export interface ZhihuReadResult {
 }
 
 /** One search request. */
+/** Order in which a search returns its hits. */
+export type ZhihuSearchSort = 'relevance' | 'newest' | 'top'
+
+/** How far back a search reaches, measured from the moment of the call. */
+export type ZhihuSearchTimeWindow = 'day' | 'week' | 'month' | 'year'
+
 export interface ZhihuSearchRequest {
   /** Free-text query, forwarded verbatim to the provider. */
   readonly query: string
@@ -128,6 +134,16 @@ export interface ZhihuSearchRequest {
    * A provider that does not page its search ignores it.
    */
   readonly cursor?: string
+  /**
+   * Order of the returned hits. Omitted keeps the provider's own relevance order, which is the
+   * only order the endpoint itself offers; another order is computed by the provider.
+   */
+  readonly sort?: ZhihuSearchSort
+  /**
+   * Keep only hits created within this window, measured from the moment of the call. Omitted keeps
+   * every age. A hit whose creation time is unknown never satisfies a window.
+   */
+  readonly timeWindow?: ZhihuSearchTimeWindow
 }
 
 /** One search hit. Promotional cards and non-content result types never appear here. */
@@ -142,6 +158,8 @@ export interface ZhihuSearchHit {
   readonly excerpt: string
   /** Canonical web URL of the hit. */
   readonly url: string
+  /** Creation time in epoch seconds; absent when the payload carried none. */
+  readonly createdTime?: number
 }
 
 /**

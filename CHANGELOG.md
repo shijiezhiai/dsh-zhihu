@@ -2,6 +2,12 @@
 
 Every tag publishes the prebuilt tarball the plugin-market entry installs, at `https://github.com/shijiezhiai/dsh-zhihu/releases/download/v<version>/dsh-zhihu.tgz`; the asset name stays `dsh-zhihu.tgz`, so a version is identified by its URL.
 
+## 1.3.8
+
+### Added
+
+- `zhihu_search` takes `sort` (`relevance`, `newest`, `top`) and `timeWindow` (`day`, `week`, `month`, `year`), so a question about what was published recently can be answered in one call, and every dated hit shows its creation date. Zhihu's search endpoint has one relevance order and ignores every sort and date parameter, so these calls read up to `http.searchScanPages` pages themselves, answer one slice, and return no cursor.
+
 ## 1.3.7
 
 ### Fixed

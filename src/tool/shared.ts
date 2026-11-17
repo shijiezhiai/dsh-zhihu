@@ -32,6 +32,8 @@ export interface ZhihuEntryFacts {
   readonly excerpt: string
   /** Provider heat label, when the entry carries one. */
   readonly heatLabel?: string
+  /** Publication date as `YYYY-MM-DD`, when the caller knows one. */
+  readonly dateLabel?: string
   /** Canonical URL of the entry. */
   readonly url: string
 }
@@ -124,7 +126,8 @@ export function formatEntryLine(entry: ZhihuEntryFacts): string {
   const label = entry.title.length > 0 ? entry.title : entry.url
   const excerpt = entry.excerpt.length > 0 ? ` — ${entry.excerpt}` : ''
   const heat = entry.heatLabel === undefined || entry.heatLabel.length === 0 ? '' : ` (${entry.heatLabel})`
-  return `- [${label}](${entry.url})${excerpt}${heat} · ${entry.kind} ${entry.id}`
+  const date = entry.dateLabel === undefined || entry.dateLabel.length === 0 ? '' : ` · ${entry.dateLabel}`
+  return `- [${label}](${entry.url})${excerpt}${heat}${date} · ${entry.kind} ${entry.id}`
 }
 
 /**

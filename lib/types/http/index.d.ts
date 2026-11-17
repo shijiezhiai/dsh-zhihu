@@ -39,6 +39,8 @@ export interface Config {
     readonly maxFeedPages?: number;
     /** Answers requested when a question read omits `answerLimit`. */
     readonly answerLimit?: number;
+    /** Pages one ordered or windowed search may read before it answers its slice. */
+    readonly searchScanPages?: number;
     /** `user-agent` header value. */
     readonly userAgent?: string;
 }

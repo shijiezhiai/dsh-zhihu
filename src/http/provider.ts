@@ -17,6 +17,8 @@ import {
   type ZhihuSearchHit,
   type ZhihuSearchPage,
   type ZhihuSearchRequest,
+  type ZhihuSearchSort,
+  type ZhihuSearchTimeWindow,
 } from '../service/index.ts'
 import { capText, toPlainText, toSearchText } from './html.ts'
 import { toMarkdown } from './markdown.ts'
@@ -44,6 +46,14 @@ const CONTENT_KIND: Record<string, ZhihuContentKind> = {
 /** Only this search entry type carries content; `hot_timing` and `knowledge_ad` are promos. */
 const SEARCH_RESULT = 'search_result'
 
+/** Length of each search time window, in seconds. A month is 30 days and a year 365. */
+const TIME_WINDOW_SECONDS: Record<ZhihuSearchTimeWindow, number> = {
+  day: 86_400,
+  week: 604_800,
+  month: 2_592_000,
+  year: 31_536_000,
+}
+
 /** Construction inputs for {@link ZhihuHttpProvider}. */
 export interface ZhihuHttpProviderOptions {
   /** The transport that performs and parses the request. */
@@ -56,6 +66,8 @@ export interface ZhihuHttpProviderOptions {
   readonly maxFeedPages: number
   /** Answers requested when a question read omits `answerLimit`. */
   readonly answerLimit: number
+  /** Pages one ordered or windowed search may read before it answers its slice. */
+  readonly searchScanPages: number
 }
 
 /** The Zhihu HTTP provider, registered into `ctx.zhihu`. */
@@ -132,17 +144,46 @@ export class ZhihuHttpProvider implements ZhihuProvider {
   }
 
   /**
-   * Search Zhihu content, dropping every non-content entry.
-   * @param request - the query, an optional hit limit, and an optional continuation token.
-   * @returns one page of hits, with the token that continues after the entries it consumed.
+   * Search Zhihu content, dropping every non-content entry. The endpoint answers one
+   * relevance-ordered page and ignores every sort and date parameter, so an order or a window is
+   * computed here from several pages of entries.
+   * @param request - the query, an optional hit limit, an optional continuation token, and the
+   *   order and time window the hits must satisfy.
+   * @returns one page of hits; an ordered or windowed search answers a slice with no token,
+   *   because a continuation would interleave with the order it imposed.
    */
   async search(request: ZhihuSearchRequest): Promise<ZhihuSearchPage> {
-    const offset = searchOffset(request.cursor)
-    const entries = await this.searchEntries(request.query, request.limit ?? this.options.pageSize, offset)
-    // A request spends its entry budget on promo cards too, so the next page starts past every
-    // entry read rather than past every hit kept.
-    const items = entries.flatMap(item => searchHit(item))
-    return entries.length === 0 ? { items } : { items, cursor: String(offset + entries.length) }
+    const limit = request.limit ?? this.options.pageSize
+    const order = request.sort ?? 'relevance'
+    const since = request.timeWindow === undefined ? undefined : nowSeconds() - TIME_WINDOW_SECONDS[request.timeWindow]
+    if (order === 'relevance' && since === undefined) {
+      const offset = searchOffset(request.cursor)
+      const entries = await this.searchEntries(request.query, limit, offset)
+      // A request spends its entry budget on promo cards too, so the next page starts past every
+      // entry read rather than past every hit kept.
+      const items = entries.flatMap(item => searchHit(item))
+      return entries.length === 0 ? { items } : { items, cursor: String(offset + entries.length) }
+    }
+    const entries = await this.scanSearch(request.query)
+    const kept = since === undefined ? entries : entries.filter(item => (createdOf(item) ?? 0) >= since)
+    return { items: orderEntries(kept, order).flatMap(item => searchHit(item)).slice(0, limit) }
+  }
+
+  /**
+   * Read search entries across the configured page budget. An order or a window needs more than
+   * the single relevance-ordered page the endpoint answers, or it would have nothing to choose
+   * from.
+   * @param query - search text.
+   * @returns every entry read, promos included, in the order the endpoint answered.
+   */
+  private async scanSearch(query: string): Promise<readonly ZhihuSearchItem[]> {
+    const entries: ZhihuSearchItem[] = []
+    for (let page = 0; page < this.options.searchScanPages; page += 1) {
+      const read = await this.searchEntries(query, this.options.pageSize, page * this.options.pageSize)
+      entries.push(...read)
+      if (read.length < this.options.pageSize) break
+    }
+    return entries
   }
 
   /**
@@ -313,6 +354,38 @@ function searchOffset(cursor: string | undefined): number {
  * @param item - one wire entry.
  * @returns the seam hit, or an empty array for a promo or a non-content object.
  */
+/**
+ * Current wall-clock time in epoch seconds; a search window is measured against it.
+ * @returns the current time as a whole number of seconds.
+ */
+function nowSeconds(): number {
+  return Math.floor(Date.now() / 1_000)
+}
+
+/**
+ * Creation time of one raw search entry.
+ * @param item - one search entry.
+ * @returns the creation time in epoch seconds, or undefined when the entry carries none.
+ */
+function createdOf(item: ZhihuSearchItem): number | undefined {
+  return item.object?.created_time
+}
+
+/**
+ * Order entries the way a search request asked. Entries without the ranked field go last, and the
+ * sort is stable, so equally ranked entries keep the order the endpoint answered.
+ * @param items - the entries a scan read.
+ * @param order - the requested order; `relevance` keeps the endpoint's own.
+ * @returns the entries in the requested order.
+ */
+function orderEntries(items: readonly ZhihuSearchItem[], order: ZhihuSearchSort): readonly ZhihuSearchItem[] {
+  switch (order) {
+    case 'relevance': return items
+    case 'newest': return [...items].sort((a, b) => (createdOf(b) ?? 0) - (createdOf(a) ?? 0))
+    case 'top': return [...items].sort((a, b) => (b.object?.voteup_count ?? 0) - (a.object?.voteup_count ?? 0))
+  }
+}
+
 function searchHit(item: ZhihuSearchItem): ZhihuSearchHit[] {
   if (item.type !== SEARCH_RESULT) return []
   const object = item.object
@@ -327,5 +400,6 @@ function searchHit(item: ZhihuSearchItem): ZhihuSearchHit[] {
     title: toSearchText(object.title ?? ''),
     excerpt: toSearchText(object.excerpt ?? ''),
     url: contentUrl(kind, id),
+    ...(object.created_time === undefined ? {} : { createdTime: object.created_time }),
   }]
 }

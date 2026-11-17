@@ -132,11 +132,11 @@ Same as the feed tool: a static declaration and an appended result, so the prefi
 
 #### What the model sees
 
-`zhihu_search` takes `query`, `limit` and an optional `cursor`. Hits carry a title, a link and an excerpt; the returned cursor resumes the same query, and a page that ends returns none.
+`zhihu_search` takes `query`, `limit`, an optional `cursor`, and two narrowing arguments: `sort` (`relevance`, `newest` or `top`) and `timeWindow` (`day`, `week`, `month` or `year`). Hits carry a title, a link, an excerpt and their creation date; the returned cursor resumes the same query, and a page that ends returns none. Zhihu's search endpoint offers a single relevance order and ignores every sort and date parameter, so an ordered or windowed call reads several pages itself, answers one slice, and returns no cursor.
 
 #### Token effect
 
-A call adds the notice and up to `tool.maxItems` hits with their excerpts; the cursor is a short string, so paging costs about what one page does.
+A call adds the notice and up to `tool.maxItems` hits with their excerpts; the cursor is a short string, so paging costs about what one page does. An ordered or windowed call reads up to `http.searchScanPages` pages before it answers, which costs upstream requests but no result tokens beyond the same bounded slice.
 
 #### KV Cache effect
 
