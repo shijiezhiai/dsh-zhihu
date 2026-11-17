@@ -1,8 +1,8 @@
 // Shared Zhihu content pieces: the untrusted-content notice, one feed list, and
 // one opened row. The right Sidebar tab and the full page render the same
 // markup, so a row reads the same wherever it is opened.
-import { Fragment, useMemo } from 'react'
-import type { ReactNode } from 'react'
+import { Fragment, useMemo, useRef, useState } from 'react'
+import type { KeyboardEvent, ReactNode } from 'react'
 import { Button, MarkdownText, Tag } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { MarkdownLabels } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { RemoteFailure } from '@deepseek-ai/dsh-api-remotes/client'
@@ -82,6 +82,62 @@ export function ZhihuRowList({ rows, t, onOpen, moves, counted = false }: {
   readonly moves?: Readonly<Record<string, ZhihuRankMove>> | undefined
   readonly counted?: boolean
 }): ReactNode {
+  const buttons = useRef<(HTMLButtonElement | null)[]>([])
+  const [active, setActive] = useState(-1)
+  /**
+   * The row the list counts as its current one: the one the reader moved to, or the first row
+   * before they moved at all. One row owns the tab stop, so Tab enters the list once.
+   */
+  const current = active >= 0 && active < rows.length ? active : 0
+
+  /**
+   * Put the reader on one row, and keep the index inside the page they are looking at.
+   * @param index - the row to move to.
+   */
+  function moveTo(index: number): void {
+    const next = Math.max(0, Math.min(rows.length - 1, index))
+    setActive(next)
+    buttons.current[next]?.focus()
+  }
+
+  /**
+   * Walk the list from the keyboard. The shortcuts registry reserves a modifier for every
+   * command, so the list handles its own plain keys instead of registering them.
+   * @param event - the key press, from a row or from a field inside a row.
+   */
+  function keyDown(event: KeyboardEvent<HTMLOListElement>): void {
+    if (event.metaKey || event.ctrlKey || event.altKey) return
+    // A row reached with Tab was never walked to, so the row holding focus is where the next key starts.
+    const from = active >= 0 && active < rows.length
+      ? active
+      : buttons.current.findIndex(button => button !== null && button === document.activeElement)
+    switch (event.key) {
+      case 'ArrowDown':
+      case 'j':
+        event.preventDefault()
+        moveTo(from === -1 ? 0 : from + 1)
+        return
+      case 'ArrowUp':
+      case 'k':
+        event.preventDefault()
+        moveTo(from === -1 ? rows.length - 1 : from - 1)
+        return
+      case 'Home':
+      case 'End':
+        event.preventDefault()
+        moveTo(event.key === 'Home' ? 0 : rows.length - 1)
+        return
+      case 'Escape':
+        if (from === -1) return
+        event.preventDefault()
+        buttons.current[from]?.blur()
+        setActive(-1)
+        return
+      default:
+        return
+    }
+  }
+
   if (rows.length === 0) return <p className={css.state}>{t('list.empty')}</p>
   // Only the leading run is counted: a row that turns up further down keeps its own mark instead
   // of pulling the dividing line somewhere the reader would not expect it.
@@ -96,7 +152,7 @@ export function ZhihuRowList({ rows, t, onOpen, moves, counted = false }: {
   return (
     <>
       <p className={css.notice}>{t('panel.untrusted')}</p>
-      <ol className={css.list}>
+      <ol className={css.list} onKeyDown={keyDown}>
         {rows.map((row, index) => {
           const move = moves?.[zhihuRowKey(row)]
           return (
@@ -105,6 +161,8 @@ export function ZhihuRowList({ rows, t, onOpen, moves, counted = false }: {
                 <button
                   type="button"
                   className={css.rowTitle}
+                  tabIndex={index === current ? 0 : -1}
+                  ref={(element) => { buttons.current[index] = element }}
                   onClick={() => { onOpen(row) }}
                 >
                   {row.title}

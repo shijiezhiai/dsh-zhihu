@@ -2,6 +2,12 @@
 
 Every tag publishes the prebuilt tarball the plugin-market entry installs, at `https://github.com/shijiezhiai/dsh-zhihu/releases/download/v<version>/dsh-zhihu.tgz`; the asset name stays `dsh-zhihu.tgz`, so a version is identified by its URL.
 
+## 1.3.4
+
+### Added
+
+- A list is walkable from the keyboard: the arrow keys or j and k move from row to row, Home and End jump to the ends, Enter opens the row holding focus, and Escape leaves the list. One row owns the tab stop at a time, so Tab enters the list once, and a plain letter pressed with a command modifier is left to the command it belongs to.
+
 ## 1.3.3
 
 ### Fixed
