@@ -15,6 +15,14 @@
   gap: 10px;
 }
 
+/* The detail menu is portaled and placed from this span's viewport rect, so the
+ * span carries the pointer position and takes no room itself. */
+.menuAnchor {
+  position: fixed;
+  width: 0;
+  height: 0;
+}
+
 .title {
   margin: 0;
   font-size: var(--dsw-font-md-16);

@@ -799,7 +799,6 @@ export function ZhihuPage(
   }, [quote])
 
   if (opened !== null) {
-    const menuRect = menu === undefined ? null : new DOMRect(menu.x, menu.y, 0, 0)
     const seat = chat.status === 'ready' ? chat.seat : undefined
     return (
       <section
@@ -887,18 +886,19 @@ export function ZhihuPage(
             onCollect={() => { collect(opened.row, quote.segments) }}
           />
         )}
-        <Menu
-          open={menu !== undefined}
-          portal
-          anchor={null}
-          items={detailMenu(t, keycaps, selection.trim() !== '')}
-          getAnchorRect={() => menuRect}
-          onSelect={(id) => {
-            setMenu(undefined)
-            runAction?.(id as ZhihuDetailAction)
-          }}
-          onClose={() => { setMenu(undefined) }}
-        />
+        <span className={css.menuAnchor} style={{ left: menu?.x ?? 0, top: menu?.y ?? 0 }}>
+          <Menu
+            open={menu !== undefined}
+            portal
+            anchor={null}
+            items={detailMenu(t, keycaps, selection.trim() !== '')}
+            onSelect={(id) => {
+              setMenu(undefined)
+              runAction?.(id as ZhihuDetailAction)
+            }}
+            onClose={() => { setMenu(undefined) }}
+          />
+        </span>
       </section>
     )
   }

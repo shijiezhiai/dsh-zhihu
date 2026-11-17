@@ -2,6 +2,12 @@
 
 Every tag publishes the prebuilt tarball the plugin-market entry installs, at `https://github.com/shijiezhiai/dsh-zhihu/releases/download/v<version>/dsh-zhihu.tgz`; the asset name stays `dsh-zhihu.tgz`, so a version is identified by its URL.
 
+## 1.3.3
+
+### Fixed
+
+- The right-click menu of an open row opens at the pointer again. It is placed from the wrapper span's viewport rect, which the plugin now puts at the click point; host builds that predate the rect callback had measured the wrapper where it sat in the article text, so on a long article the menu opened past the fold and a right click looked like nothing happened.
+
 ## 1.3.2
 
 ### Added
