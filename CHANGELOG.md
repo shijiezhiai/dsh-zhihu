@@ -2,6 +2,12 @@
 
 Every tag publishes the prebuilt tarball the plugin-market entry installs, at `https://github.com/shijiezhiai/dsh-zhihu/releases/download/v<version>/dsh-zhihu.tgz`; the asset name stays `dsh-zhihu.tgz`, so a version is identified by its URL.
 
+## 1.3.7
+
+### Fixed
+
+- The passage bubble stays inside the pane it opens in and never leaves its buttons off-screen: it is placed and sized from the surface the reader pointed in, so a sidebar pane narrower than the window still holds the whole card, and a window resize dismisses the bubble instead of leaving it at coordinates the rewrapped text no longer sits under.
+
 ## 1.3.6
 
 ### Changed

@@ -51,7 +51,7 @@ export function ZhihuQuoteBox({ passage, count, t, onAsk, onCollect }: ZhihuQuot
   return (
     <div
       className={css.quote}
-      style={{ left: passage.left, top: passage.top }}
+      style={{ left: passage.left, top: passage.top, width: passage.width }}
       data-zhihu-passage=""
       role="dialog"
       aria-label={t('quote.action')}

@@ -31,6 +31,8 @@ export interface ZhihuPassage {
   readonly left: number
   /** Top edge of the bubble. */
   readonly top: number
+  /** Width of the bubble, capped to the area it opens in. */
+  readonly width: number
 }
 
 /** A rectangle in viewport pixels; a `DOMRect` satisfies it. */
@@ -40,9 +42,15 @@ export interface QuoteRect {
   readonly bottom: number
 }
 
-/** The visible viewport in CSS pixels. */
+/** The area the bubble must stay inside, in viewport pixels; a pane is narrower than the window. */
 export interface QuoteViewport {
+  /** Left edge of the area. */
+  readonly left: number
+  /** Top edge of the area. */
+  readonly top: number
+  /** Width of the area. */
   readonly width: number
+  /** Height of the area. */
   readonly height: number
 }
 
@@ -115,21 +123,26 @@ export function collectQuote(
 }
 
 /**
- * Place the bubble against the passage, keeping it inside the viewport.
+ * Place the bubble against the passage, keeping it inside the area it opens in
+ * and no wider than that area leaves room for.
  * @param rect - the passage's viewport rectangle.
- * @param viewport - the visible viewport.
- * @returns the bubble's fixed left and top.
+ * @param area - the area the bubble must stay inside.
+ * @returns the bubble's fixed left, top and width.
  */
-export function placePassage(rect: QuoteRect, viewport: QuoteViewport): { left: number; top: number } {
+export function placePassage(
+  rect: QuoteRect,
+  area: QuoteViewport,
+): { left: number; top: number; width: number } {
+  const width = Math.max(0, Math.min(QUOTE_WIDTH, area.width - 2 * QUOTE_MARGIN))
   const left = Math.min(
-    Math.max(rect.left, QUOTE_MARGIN),
-    Math.max(QUOTE_MARGIN, viewport.width - QUOTE_WIDTH - QUOTE_MARGIN),
+    Math.max(rect.left, area.left + QUOTE_MARGIN),
+    Math.max(area.left + QUOTE_MARGIN, area.left + area.width - width - QUOTE_MARGIN),
   )
   const below = rect.bottom + QUOTE_GAP
-  const top = below + QUOTE_HEIGHT + QUOTE_MARGIN <= viewport.height
+  const top = below + QUOTE_HEIGHT + QUOTE_MARGIN <= area.top + area.height
     ? below
-    : Math.max(QUOTE_MARGIN, rect.top - QUOTE_GAP - QUOTE_HEIGHT)
-  return { left, top }
+    : Math.max(area.top + QUOTE_MARGIN, rect.top - QUOTE_GAP - QUOTE_HEIGHT)
+  return { left, top, width }
 }
 
 /**
@@ -144,24 +157,37 @@ function blockText(block: Element): string {
 }
 
 /**
+ * Find the area a gesture landed in: the surface holding the text, since a pane
+ * in the sidebar is narrower than the window the bubble is fixed to.
+ * @param target - the element the gesture landed on.
+ * @returns that surface's viewport rectangle, or the window when there is none.
+ */
+function areaOf(target: EventTarget | null): QuoteViewport {
+  const surface = target instanceof Element ? target.closest('[data-surface]') : null
+  const rect = surface?.getBoundingClientRect()
+  if (rect === undefined) return { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight }
+  return { left: rect.left, top: rect.top, width: rect.width, height: rect.height }
+}
+
+/**
  * Read the passage the reader just pointed at: the text they selected, or the
  * block they clicked when nothing is selected.
  * @param target - the element the gesture landed on.
  * @returns the passage and where its bubble goes, or undefined when the gesture named no text.
  */
 export function readPassage(target: EventTarget | null): ZhihuPassage | undefined {
-  const viewport = { width: window.innerWidth, height: window.innerHeight }
+  const area = areaOf(target)
   const selection = window.getSelection()
   if (selection !== null && !selection.isCollapsed && selection.rangeCount > 0) {
     const text = passageText(selection.toString())
     if (text === undefined) return undefined
-    return { text, ...placePassage(selection.getRangeAt(0).getBoundingClientRect(), viewport) }
+    return { text, ...placePassage(selection.getRangeAt(0).getBoundingClientRect(), area) }
   }
   const block = target instanceof Element ? target.closest(BLOCK_SELECTOR) : null
   if (block === null) return undefined
   const text = passageText(blockText(block))
   if (text === undefined) return undefined
-  return { text, ...placePassage(block.getBoundingClientRect(), viewport) }
+  return { text, ...placePassage(block.getBoundingClientRect(), area) }
 }
 
 /**

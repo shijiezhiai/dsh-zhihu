@@ -19,6 +19,8 @@ export interface ZhihuPassage {
     readonly left: number;
     /** Top edge of the bubble. */
     readonly top: number;
+    /** Width of the bubble, capped to the area it opens in. */
+    readonly width: number;
 }
 /** A rectangle in viewport pixels; a `DOMRect` satisfies it. */
 export interface QuoteRect {
@@ -26,9 +28,15 @@ export interface QuoteRect {
     readonly top: number;
     readonly bottom: number;
 }
-/** The visible viewport in CSS pixels. */
+/** The area the bubble must stay inside, in viewport pixels; a pane is narrower than the window. */
 export interface QuoteViewport {
+    /** Left edge of the area. */
+    readonly left: number;
+    /** Top edge of the area. */
+    readonly top: number;
+    /** Width of the area. */
     readonly width: number;
+    /** Height of the area. */
     readonly height: number;
 }
 /**
@@ -60,14 +68,16 @@ export interface ZhihuQuoteSource {
  */
 export declare function collectQuote(sources: readonly ZhihuQuoteSource[], row: ZhihuFeedRow, segments: readonly string[]): readonly ZhihuQuoteSource[];
 /**
- * Place the bubble against the passage, keeping it inside the viewport.
+ * Place the bubble against the passage, keeping it inside the area it opens in
+ * and no wider than that area leaves room for.
  * @param rect - the passage's viewport rectangle.
- * @param viewport - the visible viewport.
- * @returns the bubble's fixed left and top.
+ * @param area - the area the bubble must stay inside.
+ * @returns the bubble's fixed left, top and width.
  */
-export declare function placePassage(rect: QuoteRect, viewport: QuoteViewport): {
+export declare function placePassage(rect: QuoteRect, area: QuoteViewport): {
     left: number;
     top: number;
+    width: number;
 };
 /**
  * Read the passage the reader just pointed at: the text they selected, or the

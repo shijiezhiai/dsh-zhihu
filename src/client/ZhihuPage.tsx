@@ -686,7 +686,7 @@ export function ZhihuPage(
     setQuote((current) => {
       const segments = toggleSegment(current?.segments ?? [], next.text)
       if (segments.length === 0) return undefined
-      return { segments, text: segmentsText(segments), left: next.left, top: next.top }
+      return { segments, text: segmentsText(segments), left: next.left, top: next.top, width: next.width }
     })
   }, [])
 
@@ -788,13 +788,17 @@ export function ZhihuPage(
       if (event.target instanceof Element && event.target.closest('[data-zhihu-passage]') !== null) return
       dismiss()
     }
+    // A resize rewraps the text under the pointer, so the point that named the passage no longer points at it.
+    const onResize = (): void => { dismiss() }
     document.addEventListener('pointerdown', onPointerDown)
     document.addEventListener('keydown', onKeyDown, true)
     window.addEventListener('scroll', onScroll, true)
+    window.addEventListener('resize', onResize)
     return () => {
       document.removeEventListener('pointerdown', onPointerDown)
       document.removeEventListener('keydown', onKeyDown, true)
       window.removeEventListener('scroll', onScroll, true)
+      window.removeEventListener('resize', onResize)
     }
   }, [quote])
 
