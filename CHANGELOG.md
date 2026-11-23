@@ -2,6 +2,12 @@
 
 Every tag publishes the prebuilt tarball the plugin-market entry installs, at `https://github.com/shijiezhiai/dsh-zhihu/releases/download/v<version>/dsh-zhihu.tgz`; the asset name stays `dsh-zhihu.tgz`, so a version is identified by its URL.
 
+## 1.5.0
+
+### Added
+
+- `zhihu_comments` reads the root comments of a question, an answer, or an article, in Zhihu's own hotness order, with each comment's upvotes, author, date, reply count, and text — the signal a reader uses to judge whether a post is worth trusting. Zhihu ranks at most ten root comments per page, so a call answers one slice of the thread and reads up to `http.commentPages` pages for a larger limit; comments are untrusted external content, and a challenge page surfaces as `ZHIHU_BLOCKED` rather than as an empty thread.
+
 ## 1.4.0
 
 ### Added

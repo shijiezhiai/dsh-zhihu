@@ -149,6 +149,47 @@ export interface ZhihuSearchPage {
     readonly cursor?: string;
 }
 /**
+ * One comments request. Zhihu serves root comments of questions, answers, and articles through the
+ * same endpoint, ranked by its own hotness score rather than by upvote count alone.
+ */
+export interface ZhihuCommentsRequest {
+    /** Which kind of content `id` addresses. */
+    readonly kind: ZhihuContentKind;
+    /** Lossless decimal content id. */
+    readonly id: string;
+    /**
+     * Upper bound on returned comments; the seam enforces it. Omitted = provider default. A provider
+     * answers one slice of the thread, because the endpoint's continuation token cannot be resumed
+     * without dropping the comments between the two pages.
+     */
+    readonly limit?: number;
+}
+/** One root comment on a piece of Zhihu content. */
+export interface ZhihuComment {
+    /** Lossless decimal comment id. */
+    readonly id: string;
+    /** Author display name; empty when the payload carries none. */
+    readonly author: string;
+    /** Plain-text body with markup removed. */
+    readonly text: string;
+    /** Upvote count of the comment; 0 when unavailable. */
+    readonly likes: number;
+    /** How many replies the comment collected. */
+    readonly replies: number;
+    /** Creation time in epoch seconds; absent when the payload carried none. */
+    readonly createdTime?: number;
+}
+/**
+ * One slice of a comment thread. `total` counts the content's root comments, not the ones this
+ * slice carries, so a caller can say how much of the thread it read.
+ */
+export interface ZhihuCommentsPage {
+    /** The comments read, in the order the endpoint ranked them. */
+    readonly items: readonly ZhihuComment[];
+    /** Number of root comments on the content; absent when the payload carried none. */
+    readonly total?: number;
+}
+/**
  * One backend that can serve `ctx.zhihu`. Providers register themselves with the service and
  * answer `available()` per call, so selection reflects credentials that changed at runtime.
  */
@@ -175,5 +216,11 @@ export interface ZhihuProvider {
      * @returns one page of content hits; the seam caps them to `request.limit`.
      */
     search(request: ZhihuSearchRequest): Promise<ZhihuSearchPage>;
+    /**
+     * List one page of a content's root comments.
+     * @param request - the content kind and id, and an optional comment limit.
+     * @returns one slice of the thread; the seam caps its comments to `request.limit`.
+     */
+    comments(request: ZhihuCommentsRequest): Promise<ZhihuCommentsPage>;
 }
 //# sourceMappingURL=types.d.ts.map

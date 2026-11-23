@@ -90,6 +90,12 @@ export declare function readString(args: unknown, field: string): string | undef
  */
 export declare function formatEntryLine(entry: ZhihuEntryFacts): string;
 /**
+ * Render a creation time as the calendar date a reader compares against a time window.
+ * @param createdTime - creation time in epoch seconds.
+ * @returns the date as `YYYY-MM-DD` in the host's zone.
+ */
+export declare function formatDay(createdTime: number): string;
+/**
  * Turn a Zhihu failure into text a model can act on: the stored credential, the
  * wait, the verification step, or the provider code unchanged.
  * @param error - the value thrown by `ctx.zhihu`.

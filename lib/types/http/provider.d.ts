@@ -4,7 +4,7 @@
  * link is built from a lossless id.
  * @module @deepseek-ai/dsh-zhihu-plugin/http/provider
  */
-import { type ZhihuFeedPage, type ZhihuFeedRequest, type ZhihuProvider, type ZhihuReadRequest, type ZhihuReadResult, type ZhihuSearchPage, type ZhihuSearchRequest } from '../service/index.ts';
+import { type ZhihuCommentsPage, type ZhihuCommentsRequest, type ZhihuFeedPage, type ZhihuFeedRequest, type ZhihuProvider, type ZhihuReadRequest, type ZhihuReadResult, type ZhihuSearchPage, type ZhihuSearchRequest } from '../service/index.ts';
 import type { ZhihuTransport } from './types.ts';
 /** Construction inputs for {@link ZhihuHttpProvider}. */
 export interface ZhihuHttpProviderOptions {
@@ -20,6 +20,8 @@ export interface ZhihuHttpProviderOptions {
     readonly answerLimit: number;
     /** Pages one ordered or windowed search may read before it answers its slice. */
     readonly searchScanPages: number;
+    /** Pages one `comments()` call may read: the endpoint answers at most ten comments per page. */
+    readonly commentPages: number;
 }
 /** The Zhihu HTTP provider, registered into `ctx.zhihu`. */
 export declare class ZhihuHttpProvider implements ZhihuProvider {
@@ -67,6 +69,15 @@ export declare class ZhihuHttpProvider implements ZhihuProvider {
      *   because a continuation would interleave with the order it imposed.
      */
     search(request: ZhihuSearchRequest): Promise<ZhihuSearchPage>;
+    /**
+     * List a content's root comments. They are a smell test on the content rather than evidence about
+     * it, so the first answers are the ones worth reading. Zhihu ranks a page at ten comments at
+     * most, so a larger limit is filled from the continuation URLs it hands out; each page asks only
+     * for what is still missing, which keeps every comment of a page it reads.
+     * @param request - the content kind and id, and an optional comment limit.
+     * @returns the comments read, and the content's root-comment count when the payload carries one.
+     */
+    comments(request: ZhihuCommentsRequest): Promise<ZhihuCommentsPage>;
     /**
      * Read search entries across the configured page budget. An order or a window needs more than
      * the single relevance-ordered page the endpoint answers, or it would have nothing to choose

@@ -7,6 +7,9 @@
 
 import {
   ZhihuError,
+  type ZhihuComment,
+  type ZhihuCommentsPage,
+  type ZhihuCommentsRequest,
   type ZhihuContentKind,
   type ZhihuFeedItem,
   type ZhihuFeedPage,
@@ -24,6 +27,7 @@ import { capText, toPlainText, toSearchText } from './html.ts'
 import { toMarkdown } from './markdown.ts'
 import type {
   ZhihuAnswer,
+  ZhihuCommentRow,
   ZhihuHotItem,
   ZhihuListBody,
   ZhihuMomentItem,
@@ -41,6 +45,13 @@ const CONTENT_KIND: Record<string, ZhihuContentKind> = {
   question: 'question',
   answer: 'answer',
   article: 'article',
+}
+
+/** Path segment naming a content kind in the comment endpoint. */
+const COMMENT_KIND: Record<ZhihuContentKind, string> = {
+  question: 'questions',
+  answer: 'answers',
+  article: 'articles',
 }
 
 /** Only this search entry type carries content; `hot_timing` and `knowledge_ad` are promos. */
@@ -68,6 +79,8 @@ export interface ZhihuHttpProviderOptions {
   readonly answerLimit: number
   /** Pages one ordered or windowed search may read before it answers its slice. */
   readonly searchScanPages: number
+  /** Pages one `comments()` call may read: the endpoint answers at most ten comments per page. */
+  readonly commentPages: number
 }
 
 /** The Zhihu HTTP provider, registered into `ctx.zhihu`. */
@@ -167,6 +180,29 @@ export class ZhihuHttpProvider implements ZhihuProvider {
     const entries = await this.scanSearch(request.query)
     const kept = since === undefined ? entries : entries.filter(item => (createdOf(item) ?? 0) >= since)
     return { items: orderEntries(kept, order).flatMap(item => searchHit(item)).slice(0, limit) }
+  }
+
+  /**
+   * List a content's root comments. They are a smell test on the content rather than evidence about
+   * it, so the first answers are the ones worth reading. Zhihu ranks a page at ten comments at
+   * most, so a larger limit is filled from the continuation URLs it hands out; each page asks only
+   * for what is still missing, which keeps every comment of a page it reads.
+   * @param request - the content kind and id, and an optional comment limit.
+   * @returns the comments read, and the content's root-comment count when the payload carries one.
+   */
+  async comments(request: ZhihuCommentsRequest): Promise<ZhihuCommentsPage> {
+    const limit = request.limit ?? this.options.pageSize
+    const items: ZhihuComment[] = []
+    let next: string | undefined = commentUrl(request.kind, request.id, limit)
+    let total: number | undefined
+    for (let pages = 0; next !== undefined && pages < this.options.commentPages && items.length < limit; pages += 1) {
+      const body = await this.options.transport.get<ZhihuListBody<ZhihuCommentRow>>(next)
+      items.push(...(body.data ?? []).flatMap(row => commentItem(row)))
+      total = body.paging?.totals ?? total
+      next = nextPageUrl(body.paging)
+      if (next !== undefined) next = withLimit(next, limit - items.length)
+    }
+    return { items, ...(total === undefined ? {} : { total }) }
   }
 
   /**
@@ -321,21 +357,73 @@ function targetItem(item: ZhihuRecommendItem | ZhihuMomentItem): ZhihuFeedItem[]
 }
 
 /**
- * Read the continuation URL out of a paging marker. Only Zhihu's own HTTPS origin is followed, so a
- * compromised or unexpected payload cannot redirect the credentialed request elsewhere.
+ * Read the continuation URL out of a paging marker.
  * @param paging - the response's paging marker.
- * @returns the absolute URL to fetch next, or `undefined` when the feed ended.
+ * @returns the absolute URL to fetch next, or `undefined` when the listing ended.
  */
 function nextPageUrl(paging: ZhihuPaging | undefined): string | undefined {
-  if (paging === undefined || paging.is_end === true || paging.next === undefined) return undefined
+  if (paging === undefined || paging.is_end === true) return undefined
+  return zhihuUrl(paging.next)
+}
+
+/**
+ * Accept one URL only when it addresses Zhihu's own HTTPS origin, so a compromised payload or a
+ * hand-written token cannot redirect the credentialed request elsewhere.
+ * @param candidate - the URL to check.
+ * @returns the URL, or `undefined` when it is absent or not Zhihu's.
+ */
+function zhihuUrl(candidate: string | undefined): string | undefined {
+  if (candidate === undefined) return undefined
   let url: URL
   try {
-    url = new URL(paging.next)
+    url = new URL(candidate)
   } catch {
     return undefined
   }
   if (url.protocol !== 'https:' || url.hostname !== 'www.zhihu.com') return undefined
   return url.toString()
+}
+
+/**
+ * Build the first page URL of a content's root comments. The endpoint answers an empty page when
+ * `offset` is present, so the first page names only the order and the size.
+ * @param kind - the content kind.
+ * @param id - lossless content id.
+ * @param limit - comments requested; the endpoint caps a page at ten.
+ * @returns the absolute request URL.
+ */
+function commentUrl(kind: ZhihuContentKind, id: string, limit: number): string {
+  return `${API_ROOT}/api/v4/comment_v5/${COMMENT_KIND[kind]}/${id}/root_comment?order=score&filter_tag=all&limit=${limit}`
+}
+
+/**
+ * Resize a continuation URL to the comments still missing, so a page is never read past the limit.
+ * @param url - the continuation URL the previous page named.
+ * @param limit - comments still wanted; zero or less leaves nothing to read.
+ * @returns the URL asking for that many, or `undefined` when the limit is already met.
+ */
+function withLimit(url: string, limit: number): string | undefined {
+  if (limit <= 0) return undefined
+  const next = new URL(url)
+  next.searchParams.set('limit', String(limit))
+  return next.toString()
+}
+
+/**
+ * Map one root comment.
+ * @param row - one wire comment.
+ * @returns the seam comment, or an empty array when the row carries no id.
+ */
+function commentItem(row: ZhihuCommentRow): ZhihuComment[] {
+  if (row.id === undefined) return []
+  return [{
+    id: String(row.id),
+    author: row.author?.name ?? '',
+    text: toPlainText(row.content ?? ''),
+    likes: row.like_count ?? 0,
+    replies: row.child_comment_count ?? 0,
+    ...(row.created_time === undefined ? {} : { createdTime: row.created_time }),
+  }]
 }
 
 /**
@@ -349,11 +437,6 @@ function searchOffset(cursor: string | undefined): number {
   return Number.isSafeInteger(offset) && offset >= 0 ? offset : 0
 }
 
-/**
- * Map one search entry.
- * @param item - one wire entry.
- * @returns the seam hit, or an empty array for a promo or a non-content object.
- */
 /**
  * Current wall-clock time in epoch seconds; a search window is measured against it.
  * @returns the current time as a whole number of seconds.
@@ -386,6 +469,11 @@ function orderEntries(items: readonly ZhihuSearchItem[], order: ZhihuSearchSort)
   }
 }
 
+/**
+ * Map one search entry.
+ * @param item - one wire entry.
+ * @returns the seam hit, or an empty array for a promo or a non-content object.
+ */
 function searchHit(item: ZhihuSearchItem): ZhihuSearchHit[] {
   if (item.type !== SEARCH_RESULT) return []
   const object = item.object

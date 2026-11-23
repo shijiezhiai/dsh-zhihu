@@ -54,6 +54,8 @@ export interface Config {
   readonly answerLimit?: number
   /** Pages one ordered or windowed search may read before it answers its slice. */
   readonly searchScanPages?: number
+  /** Pages one comments request may read; the endpoint answers at most ten comments per page. */
+  readonly commentPages?: number
   /** `user-agent` header value. */
   readonly userAgent?: string
 }
@@ -68,6 +70,7 @@ export const Config: z<Config> = z.object({
   maxFeedPages: z.number().default(3),
   answerLimit: z.number().default(1),
   searchScanPages: z.number().default(3),
+  commentPages: z.number().default(3),
   userAgent: z.string().default(DEFAULT_USER_AGENT),
 })
 
@@ -105,6 +108,7 @@ export function apply(ctx: Context, config: Config): void {
   assertPositiveInteger('maxFeedPages', resolved.maxFeedPages)
   assertPositiveInteger('answerLimit', resolved.answerLimit)
   assertPositiveInteger('searchScanPages', resolved.searchScanPages)
+  assertPositiveInteger('commentPages', resolved.commentPages)
   assertCredentialName(resolved.credential)
   assertUserAgent(resolved.userAgent)
   const client = new ZhihuHttpClient({
@@ -121,6 +125,7 @@ export function apply(ctx: Context, config: Config): void {
     maxFeedPages: resolved.maxFeedPages,
     answerLimit: resolved.answerLimit,
     searchScanPages: resolved.searchScanPages,
+    commentPages: resolved.commentPages,
   }))
 }
 

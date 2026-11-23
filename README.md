@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-One installable package puts Zhihu inside the harness: three model tools read the hot and recommendation feeds, one answer or column post and search results, and the same package draws a sidebar panel where a reader opens those rows, quotes a passage, discusses the item in a real Session and writes it to Obsidian. Nothing model-facing appears until a profile enables the plugin.
+One installable package puts Zhihu inside the harness: four model tools read the hot and recommendation feeds, one answer or column post, search results and an item's root comments, and the same package draws a sidebar panel where a reader opens those rows, quotes a passage, discusses the item in a real Session and writes it to Obsidian. Nothing model-facing appears until a profile enables the plugin.
 
 ## Table of Contents
 
@@ -56,6 +56,7 @@ Every setting has a default and is validated at load:
 | `http.pageSize` | `20` | Rows per feed page |
 | `http.maxFeedPages` | `3` | Pages one feed call may walk |
 | `http.answerLimit` | `1` | Answers read with one question |
+| `http.commentPages` | `3` | Pages one comments call may walk |
 | `tool.maxItems` | `20` | Entries one tool call returns |
 | `tool.maxAnswerLimit` | `5` | Answers a tool call may ask for |
 | `tool.excerptMaxChars` | `200` | Excerpt length in feed rows |
@@ -76,13 +77,13 @@ What the reader gets: lanes for hot, recommendation, follow and search that page
 <details>
 <summary>Implementation internals — click to expand</summary>
 
-`src/index.ts` is the only Host entry: its `apply` mounts the `ctx.zhihu` seam, the credentialed HTTP provider, the model tools and the authenticated Remote, while `package.json` declares the browser half through `dsh.client`, so one install covers both planes. The seam answers feeds, reads and search; the provider owns the cookie, the spacing between calls and the typed failures; the tools render what the model reads; and the Remote serves bounded rows to the panel, which never calls Zhihu itself.
+`src/index.ts` is the only Host entry: its `apply` mounts the `ctx.zhihu` seam, the credentialed HTTP provider, the model tools and the authenticated Remote, while `package.json` declares the browser half through `dsh.client`, so one install covers both planes. The seam answers feeds, reads, search and comments; the provider owns the cookie, the spacing between calls and the typed failures; the tools render what the model reads; and the Remote serves bounded rows to the panel, which never calls Zhihu itself.
 
 | Source | Contents |
 |---|---|
 | [`src/service/`](src/service/) | The `ctx.zhihu` seam: requests, typed failures, provider selection |
 | [`src/http/`](src/http/) | Credentialed provider: cookie, rate limit, Markdown and text extraction |
-| [`src/tool/`](src/tool/) | `zhihu_feed`, `zhihu_read`, `zhihu_search` and their rendering |
+| [`src/tool/`](src/tool/) | `zhihu_feed`, `zhihu_read`, `zhihu_search`, `zhihu_comments` and their rendering |
 | [`src/remote/`](src/remote/) | Authenticated Remote, Obsidian capture, panel projections |
 | [`src/client/`](src/client/) | Panel, reader, passage quoting, discussion segment, discussion list, tool cards |
 | [`tests/`](tests/) | Provider, tool, Remote and client tests |
@@ -122,7 +123,7 @@ The declarations never change between steps of a Session, so the cached prefix s
 
 #### Token effect
 
-One read costs the notice, the header and up to `http.maxContentChars` characters of body — the largest single result of the three tools. A question read adds up to `tool.maxAnswerLimit` answers.
+One read costs the notice, the header and up to `http.maxContentChars` characters of body — the largest single result of the four tools. A question read adds up to `tool.maxAnswerLimit` answers.
 
 #### KV Cache effect
 
@@ -142,6 +143,20 @@ A call adds the notice and up to `tool.maxItems` hits with their excerpts; the c
 
 Same as the other two: nothing in the declaration moves, and each page appends its result.
 
+### Comments tool
+
+#### What the model sees
+
+`zhihu_comments` takes `kind` (`question`, `answer` or `article`), the id exactly as a listing returned it, and `limit`. A call returns the untrusted-content notice, how much of the thread it covers, and one line per comment with its upvote count, author, date, reply count and text. The follow-up states that Zhihu ranks by its own hotness score rather than by upvotes alone, and that readers' opinions are not evidence about the content.
+
+#### Token effect
+
+A call adds the notice and up to `tool.maxItems` comment lines cut at `tool.excerptMaxChars`. Zhihu ranks and returns at most ten root comments per page, so a larger limit reads up to `http.commentPages` pages — upstream requests, not result tokens.
+
+#### KV Cache effect
+
+Same as the other tools: the declaration never moves, and each call appends its result.
+
 ## Known Limitations and Deferred Work
 
 <a id="known-limitations-and-deferred-work"></a>
@@ -152,6 +167,7 @@ Same as the other two: nothing in the declaration moves, and each page appends i
 - A passage question quotes the reader's rendered text, which is not the `contentText` the model reads, so a quote is capped at 1200 characters and a longer selection is cut.
 - A passage filed on its own reads the note first and appends one section, so the vault has to serve that note back; a vault that refuses the read reports the refusal and writes nothing. Filing the same passage twice writes nothing the second time, while the same words selected elsewhere in the item append a second section under the same heading.
 - An export files the discussion only while that item's Discussion segment is open in the panel; a discussion resumed later is not read back for the note.
+- The comments endpoint answers at most ten root comments per page in Zhihu's own hotness order, so a call answers one slice of a thread and a larger limit reads further instead of paging back; a challenge page surfaces as `ZHIHU_BLOCKED` rather than as an empty thread.
 - Zhihu throttles: the provider spaces calls by `http.minIntervalMs` and the tools report the failure rather than retrying, so a burst of calls can surface an error the reader has to repeat.
 - An installed tarball is recorded by URL, so a profile upgrades only when it is handed the new release's URL; the plugin-market entry pins one version at a time.
 - The Host half loads at startup, so enabling, disabling or updating the package needs a restart.

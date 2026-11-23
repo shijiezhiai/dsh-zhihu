@@ -10,7 +10,7 @@ import type { ZhihuSearchHit, ZhihuSearchPage, ZhihuSearchSort, ZhihuSearchTimeW
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { GenericCallView, GenericResultView, ToolResult } from '@deepseek-ai/dsh-tools'
 import type { JsonValue } from '@deepseek-ai/dsh-util-values'
-import { boundText, describeZhihuFailure, formatEntryLine, readString, requireText, resolveLimit, ZHIHU_UNTRUSTED_CONTENT_NOTICE } from './shared.ts'
+import { boundText, describeZhihuFailure, formatDay, formatEntryLine, readString, requireText, resolveLimit, ZHIHU_UNTRUSTED_CONTENT_NOTICE } from './shared.ts'
 import type { ZhihuToolLimits } from './shared.ts'
 
 /** Registered name of the search tool. */
@@ -153,19 +153,6 @@ export function formatSearchOutput(value: ZhihuSearchValue): string {
     notes.join('\n'),
   ].join('\n\n')
 }
-
-/**
- * Render a creation time as the calendar date a reader compares against a time window.
- * @param createdTime - creation time in epoch seconds.
- * @returns the date as `YYYY-MM-DD` in the host's zone.
- */
-function formatDay(createdTime: number): string {
-  const date = new Date(createdTime * 1_000)
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  return `${date.getFullYear()}-${month}-${day}`
-}
-
 
 /**
  * Title one search card; malformed replay arguments fall back to the generic

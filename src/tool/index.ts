@@ -1,12 +1,14 @@
 /**
  * Model-facing Zhihu tools: the hot and recommendation feeds, question and
- * answer reading, and in-site search, all served from the `ctx.zhihu` service.
+ * answer reading, in-site search, and the root comments of one item, all served
+ * from the `ctx.zhihu` service.
  *
  * @module @deepseek-ai/dsh-zhihu-plugin/tool
  */
 
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
+import { applyZhihuCommentsTool } from './comments.ts'
 import { applyZhihuFeedTool } from './feed.ts'
 import { applyZhihuReadTool } from './read.ts'
 import { applyZhihuSearchTool } from './search.ts'
@@ -19,7 +21,9 @@ export { READ_TOOL_NAME, applyZhihuReadTool, formatReadOutput, readMeta, present
 export type { ZhihuReadItemValue, ZhihuReadValue, ZhihuReadItemMeta, ZhihuReadMeta } from './read.ts'
 export { SEARCH_TOOL_NAME, applyZhihuSearchTool, formatSearchOutput, searchMeta, presentSearchCall, presentSearchResult, projectSearchHit } from './search.ts'
 export type { ZhihuSearchItemValue, ZhihuSearchValue, ZhihuSearchItemMeta, ZhihuSearchMeta } from './search.ts'
-export { ZHIHU_UNTRUSTED_CONTENT_NOTICE, boundText, describeZhihuFailure, formatEntryLine, requireText, resolveLimit } from './shared.ts'
+export { COMMENTS_TOOL_NAME, applyZhihuCommentsTool, commentsMeta, formatCommentsOutput, presentCommentsCall, presentCommentsResult, projectComment } from './comments.ts'
+export type { ZhihuCommentItemValue, ZhihuCommentsValue, ZhihuCommentItemMeta, ZhihuCommentsMeta } from './comments.ts'
+export { ZHIHU_UNTRUSTED_CONTENT_NOTICE, boundText, describeZhihuFailure, formatDay, formatEntryLine, requireText, resolveLimit } from './shared.ts'
 export type { ZhihuEntryFacts, ZhihuToolLimits } from './shared.ts'
 
 /** Plugin name under which these tools register. */
@@ -28,7 +32,7 @@ export const name = 'tool-zhihu'
 /** Services the tools read: the tool registry and the Zhihu content seam. */
 export const inject = ['tools', 'zhihu']
 
-/** Deployment limits for the three Zhihu tools. */
+/** Deployment limits for the four Zhihu tools. */
 export interface Config {
   /** Maximum entries one feed or search call returns. */
   maxItems?: number
@@ -42,7 +46,7 @@ export interface Config {
 
 /** Schema that validates {@link Config} and fills its defaults. */
 export const Config: z<Config> = z.object({
-  maxItems: z.number().default(20).description('Maximum entries one zhihu_feed or zhihu_search call returns.'),
+  maxItems: z.number().default(20).description('Maximum entries one zhihu_feed, zhihu_search, or zhihu_comments call returns.'),
   maxAnswerLimit: z.number().default(5).description('Maximum answers one zhihu_read call requests for a question.'),
   excerptMaxChars: z.number().default(200).description('Maximum characters of one excerpt, including the ellipsis.'),
   timeoutMs: z.number().default(30_000).description('Cooperative timeout budget for one Zhihu call, in milliseconds.'),
@@ -52,7 +56,7 @@ export const Config: z<Config> = z.object({
 type ResolvedConfig = Required<Config>
 
 /**
- * Register `zhihu_feed`, `zhihu_read`, and `zhihu_search`.
+ * Register `zhihu_feed`, `zhihu_read`, `zhihu_search`, and `zhihu_comments`.
  * @param ctx - context providing the tool registry and the Zhihu service.
  * @param config - deployment limits; schemastery supplies every default.
  */
@@ -67,4 +71,5 @@ export function apply(ctx: Context, config: Config): void {
   applyZhihuFeedTool(ctx, limits)
   applyZhihuReadTool(ctx, limits)
   applyZhihuSearchTool(ctx, limits)
+  applyZhihuCommentsTool(ctx, limits)
 }

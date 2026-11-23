@@ -10,6 +10,8 @@ import { Context, Service, type Volatile } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { HarnessError } from '@deepseek-ai/dsh-llm'
 import type {
+  ZhihuCommentsPage,
+  ZhihuCommentsRequest,
   ZhihuErrorCode,
   ZhihuFeedPage,
   ZhihuFeedRequest,
@@ -21,6 +23,9 @@ import type {
 } from './types.ts'
 
 export type {
+  ZhihuComment,
+  ZhihuCommentsPage,
+  ZhihuCommentsRequest,
   ZhihuContentKind,
   ZhihuErrorCode,
   ZhihuFeedItem,
@@ -148,6 +153,20 @@ export class ZhihuService extends Service {
     const page = await this.selectProvider().search(request)
     const hits = capItems([...page.items], request.limit)
     return page.cursor === undefined ? { items: hits } : { items: hits, cursor: page.cursor }
+  }
+
+  /**
+   * List one slice of a content's root comments through the selected provider, capped to
+   * `request.limit`.
+   * @param request - the content kind and id, and an optional comment limit.
+   * @returns the comments read, truncated when the provider over-returns.
+   */
+  async comments(request: ZhihuCommentsRequest): Promise<ZhihuCommentsPage> {
+    const page = await this.selectProvider().comments(request)
+    return {
+      items: capItems([...page.items], request.limit),
+      ...(page.total === undefined ? {} : { total: page.total }),
+    }
   }
 
   /** Select the provider with the rules above, throwing the matching {@link ZhihuError}. */

@@ -8,8 +8,8 @@
 import { Context, Service, type Volatile } from '@deepseek-ai/cordis';
 import z from '@deepseek-ai/schemastery';
 import { HarnessError } from '@deepseek-ai/dsh-llm';
-import type { ZhihuErrorCode, ZhihuFeedPage, ZhihuFeedRequest, ZhihuProvider, ZhihuReadRequest, ZhihuReadResult, ZhihuSearchPage, ZhihuSearchRequest } from './types.ts';
-export type { ZhihuContentKind, ZhihuErrorCode, ZhihuFeedItem, ZhihuFeedKind, ZhihuFeedPage, ZhihuFeedRequest, ZhihuProvider, ZhihuReadKind, ZhihuReadRequest, ZhihuReadResult, ZhihuSearchHit, ZhihuSearchPage, ZhihuSearchRequest, ZhihuSearchSort, ZhihuSearchTimeWindow, } from './types.ts';
+import type { ZhihuCommentsPage, ZhihuCommentsRequest, ZhihuErrorCode, ZhihuFeedPage, ZhihuFeedRequest, ZhihuProvider, ZhihuReadRequest, ZhihuReadResult, ZhihuSearchPage, ZhihuSearchRequest } from './types.ts';
+export type { ZhihuComment, ZhihuCommentsPage, ZhihuCommentsRequest, ZhihuContentKind, ZhihuErrorCode, ZhihuFeedItem, ZhihuFeedKind, ZhihuFeedPage, ZhihuFeedRequest, ZhihuProvider, ZhihuReadKind, ZhihuReadRequest, ZhihuReadResult, ZhihuSearchHit, ZhihuSearchPage, ZhihuSearchRequest, ZhihuSearchSort, ZhihuSearchTimeWindow, } from './types.ts';
 /**
  * Failure raised by the seam or by a provider. `code` is the machine-readable discriminant; every
  * message is free of credential material, so it is safe to log and to show a model.
@@ -87,6 +87,13 @@ export declare class ZhihuService extends Service {
      * @returns the page, its hits truncated when the provider over-returns.
      */
     search(request: ZhihuSearchRequest): Promise<ZhihuSearchPage>;
+    /**
+     * List one slice of a content's root comments through the selected provider, capped to
+     * `request.limit`.
+     * @param request - the content kind and id, and an optional comment limit.
+     * @returns the comments read, truncated when the provider over-returns.
+     */
+    comments(request: ZhihuCommentsRequest): Promise<ZhihuCommentsPage>;
     /** Select the provider with the rules above, throwing the matching {@link ZhihuError}. */
     private selectProvider;
 }

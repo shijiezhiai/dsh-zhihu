@@ -39,7 +39,7 @@ export interface ZhihuWireError {
   readonly message?: string
 }
 
-/** A body carrying a `data` array, shared by feeds and search. */
+/** A body carrying a `data` array, shared by feeds, search, and comments. */
 export interface ZhihuListBody<T> {
   /** Page of items; absent when the API answers with an error object instead. */
   readonly data?: readonly T[]
@@ -53,6 +53,8 @@ export interface ZhihuPaging {
   readonly next?: string
   /** True when the response is the last page. */
   readonly is_end?: boolean
+  /** Total entries behind the listing; the comment endpoint reports the root-comment count here. */
+  readonly totals?: number
 }
 
 /** The `target` of one hot-list entry. */
@@ -139,6 +141,32 @@ export interface ZhihuSearchObject {
   readonly created_time?: number
   /** Author. */
   readonly author?: { readonly name?: string }
+}
+
+/** The `author` of one comment; the comment payload carries it flat, unlike an answer's. */
+export interface ZhihuCommentAuthor {
+  /** Display name. */
+  readonly name?: string
+  /** Handle in the profile URL. */
+  readonly url_token?: string
+}
+
+/** One root comment, as returned by `api/v4/comment_v5/.../root_comment`. */
+export interface ZhihuCommentRow {
+  /** Comment id. */
+  readonly id?: string | number
+  /** Rich-text body. */
+  readonly content?: string
+  /** Creation time in epoch seconds. */
+  readonly created_time?: number
+  /** Upvotes of the comment, which this payload names `like_count` rather than `voteup_count`. */
+  readonly like_count?: number
+  /** Number of replies the comment collected. */
+  readonly child_comment_count?: number
+  /** True when the comment was written by the content's author. */
+  readonly is_author?: boolean
+  /** Who wrote the comment. */
+  readonly author?: ZhihuCommentAuthor
 }
 
 /** One search entry. */

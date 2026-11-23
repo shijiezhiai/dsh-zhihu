@@ -1,6 +1,7 @@
 /**
  * Model-facing Zhihu tools: the hot and recommendation feeds, question and
- * answer reading, and in-site search, all served from the `ctx.zhihu` service.
+ * answer reading, in-site search, and the root comments of one item, all served
+ * from the `ctx.zhihu` service.
  *
  * @module @deepseek-ai/dsh-zhihu-plugin/tool
  */
@@ -12,13 +13,15 @@ export { READ_TOOL_NAME, applyZhihuReadTool, formatReadOutput, readMeta, present
 export type { ZhihuReadItemValue, ZhihuReadValue, ZhihuReadItemMeta, ZhihuReadMeta } from './read.ts';
 export { SEARCH_TOOL_NAME, applyZhihuSearchTool, formatSearchOutput, searchMeta, presentSearchCall, presentSearchResult, projectSearchHit } from './search.ts';
 export type { ZhihuSearchItemValue, ZhihuSearchValue, ZhihuSearchItemMeta, ZhihuSearchMeta } from './search.ts';
-export { ZHIHU_UNTRUSTED_CONTENT_NOTICE, boundText, describeZhihuFailure, formatEntryLine, requireText, resolveLimit } from './shared.ts';
+export { COMMENTS_TOOL_NAME, applyZhihuCommentsTool, commentsMeta, formatCommentsOutput, presentCommentsCall, presentCommentsResult, projectComment } from './comments.ts';
+export type { ZhihuCommentItemValue, ZhihuCommentsValue, ZhihuCommentItemMeta, ZhihuCommentsMeta } from './comments.ts';
+export { ZHIHU_UNTRUSTED_CONTENT_NOTICE, boundText, describeZhihuFailure, formatDay, formatEntryLine, requireText, resolveLimit } from './shared.ts';
 export type { ZhihuEntryFacts, ZhihuToolLimits } from './shared.ts';
 /** Plugin name under which these tools register. */
 export declare const name = "tool-zhihu";
 /** Services the tools read: the tool registry and the Zhihu content seam. */
 export declare const inject: string[];
-/** Deployment limits for the three Zhihu tools. */
+/** Deployment limits for the four Zhihu tools. */
 export interface Config {
     /** Maximum entries one feed or search call returns. */
     maxItems?: number;
@@ -32,7 +35,7 @@ export interface Config {
 /** Schema that validates {@link Config} and fills its defaults. */
 export declare const Config: z<Config>;
 /**
- * Register `zhihu_feed`, `zhihu_read`, and `zhihu_search`.
+ * Register `zhihu_feed`, `zhihu_read`, `zhihu_search`, and `zhihu_comments`.
  * @param ctx - context providing the tool registry and the Zhihu service.
  * @param config - deployment limits; schemastery supplies every default.
  */
