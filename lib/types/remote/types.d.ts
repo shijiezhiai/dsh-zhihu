@@ -123,6 +123,13 @@ export interface ZhihuExportDiscussion {
     /** The answer the conversation ended on, as Markdown. */
     readonly text: string;
 }
+/** A passage the reader marks on its own, filed into the note it came from. */
+export interface ZhihuExportExcerpt {
+    /** Heading of the section, in the reader's copy. */
+    readonly heading: string;
+    /** The passage, as Markdown. */
+    readonly text: string;
+}
 /** One capture the browser asks the Host to file into the Obsidian vault. */
 export interface ZhihuExportQuery {
     /** Content kind the capture carries. */
@@ -141,6 +148,12 @@ export interface ZhihuExportQuery {
     readonly truncated: boolean;
     /** Conclusion to file under the body; omitted when the reader discussed nothing. */
     readonly discussion?: ZhihuExportDiscussion;
+    /**
+     * Passage to add under its own heading; omitted when the reader filed none.
+     * The note keeps whatever it already held, so this section adds to a capture
+     * rather than replacing it.
+     */
+    readonly excerpt?: ZhihuExportExcerpt;
 }
 /** Where a filed capture landed. */
 export interface ZhihuExportResult {

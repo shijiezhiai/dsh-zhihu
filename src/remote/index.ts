@@ -9,7 +9,7 @@ import type {
   ZhihuExportQuery, ZhihuExportResult, ZhihuFailureTarget, ZhihuFeedQuery, ZhihuFeedResult,
   ZhihuReadItem, ZhihuReadQuery, ZhihuRemoteFailureCode, ZhihuSearchQuery, ZhihuSearchResult,
 } from './types.ts'
-import { noteName, notePath, noteText, ObsidianError, putNote } from './obsidian.ts'
+import { fileCapture, noteName, notePath, ObsidianError } from './obsidian.ts'
 
 export type * from './types.ts'
 
@@ -153,7 +153,7 @@ export default class ZhihuController extends TypertRemoteService {
   }
 
   /**
-   * File one capture into the Obsidian vault.
+   * File one capture into the Obsidian vault, adding a marked passage to the note it came from.
    * @param request - the opened row plus the body the reader already holds.
    * @returns the vault path that was written.
    */
@@ -163,10 +163,11 @@ export default class ZhihuController extends TypertRemoteService {
     const token = await this.obsidianToken(entry.kind)
     const path = notePath(this.config.obsidianFolder, noteName(entry.title, entry.id))
     try {
-      return { path: await putNote(
+      return { path: await fileCapture(
         { url: this.config.obsidianUrl, folder: this.config.obsidianFolder, token },
         path,
-        noteText(entry, localDay(new Date())),
+        entry,
+        localDay(new Date()),
       ) }
     } catch (error) {
       /* v8 ignore next 3 -- putNote reports every failure as ObsidianError */
@@ -191,6 +192,14 @@ export default class ZhihuController extends TypertRemoteService {
     }
     if (request.discussion !== undefined && request.discussion.heading.trim().length === 0) {
       throw new RemoteError('gateway/bad-request', 'discussion.heading must not be empty', {})
+    }
+    if (request.excerpt !== undefined) {
+      if (request.excerpt.heading.trim().length === 0) {
+        throw new RemoteError('gateway/bad-request', 'excerpt.heading must not be empty', {})
+      }
+      if (request.excerpt.text.trim().length === 0) {
+        throw new RemoteError('gateway/bad-request', 'excerpt.text must not be empty', {})
+      }
     }
     return request
   }

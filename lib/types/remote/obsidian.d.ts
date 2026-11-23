@@ -1,4 +1,4 @@
-import type { ZhihuExportQuery } from './types.ts';
+import type { ZhihuExportExcerpt, ZhihuExportQuery } from './types.ts';
 /** Where a note lands and who may write it; resolved from plugin config and credentials. */
 export interface ObsidianTarget {
     /** Base URL of the Local REST API, such as `https://127.0.0.1:27124`. */
@@ -42,6 +42,12 @@ export declare function notePath(folder: string, name: string): string;
  */
 export declare function noteText(entry: ZhihuExportQuery, day: string): string;
 /**
+ * The section one excerpt adds to its note.
+ * @param excerpt - the passage and the heading it files under.
+ * @returns Markdown holding a heading and the passage.
+ */
+export declare function excerptSection(excerpt: ZhihuExportExcerpt): string;
+/**
  * Encode a vault path so each segment survives the request line.
  * @param path - vault-relative path with `/` separators.
  * @returns the same path with every non-unreserved byte escaped per segment.
@@ -56,4 +62,22 @@ export declare function encodeVaultPath(path: string): string;
  * @throws ObsidianError when the endpoint refuses or cannot be reached.
  */
 export declare function putNote(target: ObsidianTarget, path: string, text: string): Promise<string>;
+/**
+ * Read one note, so a capture can add to what the vault already holds.
+ * @param target - endpoint, folder and token.
+ * @param path - vault-relative note path.
+ * @returns the note's Markdown, or undefined when the vault holds no note at that path.
+ * @throws ObsidianError when the endpoint answers with anything but the note or its absence.
+ */
+export declare function readNote(target: ObsidianTarget, path: string): Promise<string | undefined>;
+/**
+ * File one capture: the whole note, or one more section added to the note already there.
+ * @param target - endpoint, folder and token.
+ * @param path - vault-relative note path.
+ * @param entry - capture as the Client sent it.
+ * @param day - `YYYY-MM-DD` the capture was saved.
+ * @returns the vault path that was written.
+ * @throws ObsidianError when the endpoint refuses or cannot be reached.
+ */
+export declare function fileCapture(target: ObsidianTarget, path: string, entry: ZhihuExportQuery, day: string): Promise<string>;
 //# sourceMappingURL=obsidian.d.ts.map

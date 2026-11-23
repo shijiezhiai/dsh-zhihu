@@ -9,7 +9,7 @@ import type { RemoteFailure } from '@deepseek-ai/dsh-api-remotes/client'
 // Type-only: declares the 'main' seat this page renders into.
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type { PropsLocale, PropsRenderSlots, PropsRuntime, PropsStore } from '@deepseek-ai/dsh-client-ui-slots'
-import type { ZhihuFeedRow } from '@deepseek-ai/dsh-zhihu-plugin/types'
+import type { ZhihuExportDiscussion, ZhihuExportExcerpt, ZhihuFeedRow } from '@deepseek-ai/dsh-zhihu-plugin/types'
 import type { ZhihuKey } from './locales.ts'
 import { readableBody } from './zhihu-ask.ts'
 import { copyZhihuText } from './zhihu-clipboard.ts'
@@ -30,6 +30,7 @@ import {
   readPassage,
   segmentsText,
   toggleSegment,
+  zhihuCitation,
   zhihuQuotedInstruction,
   type ZhihuPassage,
   type ZhihuQuoteSource,
@@ -305,6 +306,15 @@ function useSearchLane(face: ZhihuPageFace, useStore: PageSelector, actions: Pag
 }
 
 /**
+ * The key hint a menu row shows, if its action has a binding.
+ * @param keys - the effective key labels of the row's command.
+ * @returns the row's shortcut field, empty when nothing is bound.
+ */
+function keyHint(keys: readonly string[]): { shortcut?: { keys: readonly string[] } } {
+  return keys.length === 0 ? {} : { shortcut: { keys } }
+}
+
+/**
  * The opened row's context menu: the copy actions, the original page, the
  * Obsidian capture, and the way back to the list.
  * @param t - copy of the Zhihu namespace.
@@ -325,6 +335,7 @@ function detailMenu(
       disabled: !hasSelection,
       shortcut: { keys: keycaps('copySelection') },
     },
+    { id: 'copyCitation', label: t('menu.copyCitation'), disabled: !hasSelection, ...keyHint(keycaps('copyCitation')) },
     { id: 'copyTitle', label: t('menu.copyTitle'), shortcut: { keys: keycaps('copyTitle') } },
     { id: 'copyLink', label: t('menu.copyLink'), shortcut: { keys: keycaps('copyLink') } },
     { id: 'copyBody', label: t('menu.copyBody'), shortcut: { keys: keycaps('copyBody') } },
@@ -333,6 +344,7 @@ function detailMenu(
     { id: 'openOriginal', label: t('panel.openOriginal'), shortcut: { keys: keycaps('openOriginal') } },
     { type: 'separator', id: 'detail-menu-export' },
     { id: 'export', label: t('menu.export'), shortcut: { keys: keycaps('export') } },
+    { id: 'exportExcerpt', label: t('menu.exportExcerpt'), disabled: !hasSelection, ...keyHint(keycaps('exportExcerpt')) },
     { type: 'separator', id: 'detail-menu-back' },
     { id: 'back', label: t('panel.back'), shortcut: { keys: ['Esc'] } },
   ]
@@ -690,17 +702,62 @@ export function ZhihuPage(
     })
   }, [])
 
+  /**
+   * File the open row, with the sections the reader asked to carry beyond its body.
+   * @param extra - the discussion, the passage, or both.
+   */
+  const file = useCallback((extra: { discussion?: ZhihuExportDiscussion; excerpt?: ZhihuExportExcerpt }): void => {
+    if (opened === null) return
+    const row = opened.row
+    const item = opened.status === 'ready' ? opened.item : undefined
+    const title = item !== undefined && item.title !== '' ? item.title : row.title
+    setNotice(t('notice.exporting'))
+    void face.export({
+      kind: row.kind,
+      id: row.id,
+      title,
+      url: row.url,
+      body: readableBody(item),
+      truncated: item?.contentTruncated ?? false,
+      ...(item === undefined || item.author === '' ? {} : { author: item.author }),
+      ...(extra.discussion === undefined ? {} : { discussion: extra.discussion }),
+      ...(extra.excerpt === undefined ? {} : { excerpt: extra.excerpt }),
+    }).then((result) => {
+      const line = result.ok
+        ? t('notice.exported', { path: result.value.path })
+        : t('notice.exportFailed', { reason: exportReason(result.failure.message, t) })
+      setNotice(line)
+      report(line)
+    }, (error: unknown) => {
+      // A Remote that never answered leaves the reader with a click and no note; say so.
+      const line = t('notice.exportFailed', {
+        reason: error instanceof Error ? exportReason(error.message, t) : t('panel.failure.generic'),
+      })
+      setNotice(line)
+      report(line)
+    })
+  }, [face, opened, report, t])
+
   // Built only while a row is open, so the menu and the shortcut handle always act on that row.
   const runAction = useMemo(() => {
     if (opened === null) return undefined
     const row = opened.row
     const item = opened.status === 'ready' ? opened.item : undefined
+    /** The text the reader selected, live when the shell kept it and from the menu otherwise. */
+    const picked = (): string => {
+      const live = window.getSelection()?.toString() ?? ''
+      return (live.trim() === '' ? selection : live).trim()
+    }
     return (action: ZhihuDetailAction): void => {
       switch (action) {
-        case 'copySelection': {
-          const live = window.getSelection()?.toString().trim() ?? ''
-          const text = live === '' ? selection.trim() : live
-          setNotice(copyZhihuText(text) ? t('notice.copied') : t('notice.copyFailed'))
+        case 'copySelection':
+          setNotice(copyZhihuText(picked()) ? t('notice.copied') : t('notice.copyFailed'))
+          return
+        case 'copyCitation': {
+          const text = picked()
+          setNotice(copyZhihuText(text === '' ? '' : zhihuCitation(text, row.title, row.url))
+            ? t('notice.copied')
+            : t('notice.copyFailed'))
           return
         }
         case 'copyTitle':
@@ -719,32 +776,15 @@ export function ZhihuPage(
           window.open(row.url, '_blank', 'noopener')
           return
         case 'export': {
-          const title = item !== undefined && item.title !== '' ? item.title : row.title
           const filed = conclusion()
-          setNotice(t('notice.exporting'))
-          void face.export({
-            kind: row.kind,
-            id: row.id,
-            title,
-            url: row.url,
-            body: readableBody(item),
-            truncated: item?.contentTruncated ?? false,
-            ...(item === undefined || item.author === '' ? {} : { author: item.author }),
-            ...(filed === undefined ? {} : { discussion: filed }),
-          }).then((result) => {
-            const line = result.ok
-              ? t('notice.exported', { path: result.value.path })
-              : t('notice.exportFailed', { reason: exportReason(result.failure.message, t) })
-            setNotice(line)
-            report(line)
-          }, (error: unknown) => {
-            // A Remote that never answered leaves the reader with a click and no note; say so.
-            const line = t('notice.exportFailed', {
-              reason: error instanceof Error ? exportReason(error.message, t) : t('panel.failure.generic'),
-            })
-            setNotice(line)
-            report(line)
-          })
+          file(filed === undefined ? {} : { discussion: filed })
+          return
+        }
+        case 'exportExcerpt': {
+          const text = picked()
+          // Without a selection the row is disabled, so this only guards a stale menu.
+          if (text === '') return
+          file({ excerpt: { heading: t('export.excerpt'), text } })
           return
         }
         case 'back':
@@ -752,7 +792,7 @@ export function ZhihuPage(
           return
       }
     }
-  }, [close, conclusion, discuss, face, opened, report, selection, t])
+  }, [close, conclusion, discuss, file, opened, report, selection, t])
 
   // While a row is open its actions are this page's; the shortcut commands run through the same handle.
   useEffect(() => (runAction === undefined ? undefined : details.attach({ run: runAction })), [details, runAction])

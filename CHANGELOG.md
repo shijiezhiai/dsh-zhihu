@@ -2,6 +2,12 @@
 
 Every tag publishes the prebuilt tarball the plugin-market entry installs, at `https://github.com/shijiezhiai/dsh-zhihu/releases/download/v<version>/dsh-zhihu.tgz`; the asset name stays `dsh-zhihu.tgz`, so a version is identified by its URL.
 
+## 1.4.0
+
+### Added
+
+- The reader's right-click menu on an open item now copies the selection as a citation — the passage quoted, then a link to the row it came from — and files just that passage into the note of that row under its own heading, leaving the rest of the note in place. Filing reads the note back first, writes nothing when the same passage is already there, and creates the note when the reader marks the first passage.
+
 ## 1.3.8
 
 ### Added

@@ -6,7 +6,7 @@
  */
 import type { ShortcutCommandId } from '@deepseek-ai/dsh-client-shortcuts/client';
 /** Actions the open detail offers its menu and its shortcuts. */
-export type ZhihuDetailAction = 'copySelection' | 'copyTitle' | 'copyLink' | 'copyBody' | 'ask' | 'openOriginal' | 'export' | 'back';
+export type ZhihuDetailAction = 'copySelection' | 'copyCitation' | 'copyTitle' | 'copyLink' | 'copyBody' | 'ask' | 'openOriginal' | 'export' | 'exportExcerpt' | 'back';
 /** What the page lends while a row is open. */
 export interface ZhihuDetailHandle {
     /**

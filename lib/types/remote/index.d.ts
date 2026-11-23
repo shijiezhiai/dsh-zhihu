@@ -48,7 +48,7 @@ export default class ZhihuController extends TypertRemoteService {
      */
     search(request: ZhihuSearchQuery): Promise<ZhihuSearchResult>;
     /**
-     * File one capture into the Obsidian vault.
+     * File one capture into the Obsidian vault, adding a marked passage to the note it came from.
      * @param request - the opened row plus the body the reader already holds.
      * @returns the vault path that was written.
      */

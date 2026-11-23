@@ -191,6 +191,15 @@ export function readPassage(target: EventTarget | null): ZhihuPassage | undefine
 }
 
 /**
+ * Mark a passage as a blockquote.
+ * @param text - the passage as the reader selected it.
+ * @returns the same lines, each prefixed as a quote.
+ */
+function blockquote(text: string): string {
+  return text.split('\n').map(line => '> ' + line).join('\n')
+}
+
+/**
  * Ask about one passage, quoting it so the model can find it in the body.
  * @param t - copy of the Zhihu namespace.
  * @param passage - the text the reader pointed at.
@@ -198,6 +207,16 @@ export function readPassage(target: EventTarget | null): ZhihuPassage | undefine
  * @returns the instruction, with the passage marked as a quote.
  */
 export function zhihuQuotedInstruction(t: ZhihuTranslate, passage: string, instruction: string): string {
-  const quote = passage.split('\n').map(line => '> ' + line).join('\n')
-  return t('quote.quoted', { quote, instruction })
+  return t('quote.quoted', { quote: blockquote(passage), instruction })
+}
+
+/**
+ * Cite one passage the way a note records it: the text quoted, then where it came from.
+ * @param text - the passage the reader selected.
+ * @param title - title of the row it came from.
+ * @param url - canonical URL of that row.
+ * @returns the passage as a Markdown blockquote followed by a link to its source.
+ */
+export function zhihuCitation(text: string, title: string, url: string): string {
+  return `${blockquote(text)}\n\n[${title}](${url})`
 }

@@ -1,7 +1,7 @@
 /** Write one Zhihu capture into an Obsidian vault through the Local REST API plugin. */
 import { request as httpRequest } from 'node:http'
 import { request as httpsRequest } from 'node:https'
-import type { ZhihuExportQuery } from './types.ts'
+import type { ZhihuExportExcerpt, ZhihuExportQuery } from './types.ts'
 
 /** Where a note lands and who may write it; resolved from plugin config and credentials. */
 export interface ObsidianTarget {
@@ -84,12 +84,83 @@ export function noteText(entry: ZhihuExportQuery, day: string): string {
 }
 
 /**
+ * The section one excerpt adds to its note.
+ * @param excerpt - the passage and the heading it files under.
+ * @returns Markdown holding a heading and the passage.
+ */
+export function excerptSection(excerpt: ZhihuExportExcerpt): string {
+  return `## ${excerpt.heading}\n\n${excerpt.text.trim()}\n`
+}
+
+/**
  * Encode a vault path so each segment survives the request line.
  * @param path - vault-relative path with `/` separators.
  * @returns the same path with every non-unreserved byte escaped per segment.
  */
 export function encodeVaultPath(path: string): string {
   return path.split('/').map(segment => encodeURIComponent(segment)).join('/')
+}
+
+/** One answer from the vault. */
+interface VaultAnswer {
+  /** Status the vault answered with; undefined when the connection closed without one. */
+  readonly status: number | undefined
+  /** Body the vault sent; empty for a write. */
+  readonly text: string
+}
+
+/**
+ * Send one request to the vault.
+ * @param target - endpoint and token.
+ * @param method - what to do with the note.
+ * @param path - vault-relative note path.
+ * @param body - Markdown to write; omitted for a read.
+ * @returns the status the vault answered with and the body it sent.
+ * @throws ObsidianError when the endpoint is not a URL, refuses the connection or never answers.
+ */
+async function sendToVault(
+  target: ObsidianTarget,
+  method: 'GET' | 'PUT',
+  path: string,
+  body?: string,
+): Promise<VaultAnswer> {
+  const endpoint = `/vault/${encodeVaultPath(path)}`
+  let url: URL
+  try {
+    url = new URL(endpoint, target.url)
+  } catch (error) {
+    throw new ObsidianError(`Obsidian endpoint is not a URL: ${target.url}`, { cause: error })
+  }
+  const send = url.protocol === 'https:' ? httpsRequest : httpRequest
+  const headers: Record<string, string | number> = { authorization: `Bearer ${target.token}` }
+  if (body === undefined) {
+    headers.accept = 'text/markdown'
+  } else {
+    headers['content-type'] = 'text/markdown; charset=utf-8'
+    headers['content-length'] = Buffer.byteLength(body)
+  }
+  return await new Promise<VaultAnswer>((resolve, reject) => {
+    const outgoing = send(url, {
+      method,
+      headers,
+      // The plugin serves a self-signed certificate on its own loopback port.
+      rejectUnauthorized: false,
+    }, (incoming) => {
+      let text = ''
+      incoming.setEncoding('utf8')
+      incoming.on('data', (chunk: string) => { text += chunk })
+      incoming.on('end', () => { resolve({ status: incoming.statusCode, text }) })
+    })
+    /* v8 ignore start -- only a vault that accepts the connection and never answers reaches this timer, which the suite does not spend */
+    outgoing.setTimeout(10_000, () => {
+      outgoing.destroy(new ObsidianError(`Obsidian did not answer within 10s at ${target.url}`))
+    })
+    /* v8 ignore stop */
+    outgoing.on('error', (error) => {
+      reject(new ObsidianError(`cannot reach Obsidian at ${target.url}: ${error.message}`, { cause: error }))
+    })
+    outgoing.end(body)
+  })
 }
 
 /**
@@ -101,40 +172,49 @@ export function encodeVaultPath(path: string): string {
  * @throws ObsidianError when the endpoint refuses or cannot be reached.
  */
 export async function putNote(target: ObsidianTarget, path: string, text: string): Promise<string> {
-  const endpoint = `/vault/${encodeVaultPath(path)}`
-  let url: URL
-  try {
-    url = new URL(endpoint, target.url)
-  } catch (error) {
-    throw new ObsidianError(`Obsidian endpoint is not a URL: ${target.url}`, { cause: error })
-  }
-  const send = url.protocol === 'https:' ? httpsRequest : httpRequest
-  const status = await new Promise<number | undefined>((resolve, reject) => {
-    const outgoing = send(url, {
-      method: 'PUT',
-      headers: {
-        authorization: `Bearer ${target.token}`,
-        'content-type': 'text/markdown; charset=utf-8',
-        'content-length': Buffer.byteLength(text),
-      },
-      // The plugin serves a self-signed certificate on its own loopback port.
-      rejectUnauthorized: false,
-    }, (incoming) => {
-      incoming.resume()
-      incoming.on('end', () => { resolve(incoming.statusCode) })
-    })
-    /* v8 ignore start -- only a vault that accepts the connection and never answers reaches this timer, which the suite does not spend */
-    outgoing.setTimeout(10_000, () => {
-      outgoing.destroy(new ObsidianError(`Obsidian did not answer within 10s at ${target.url}`))
-    })
-    /* v8 ignore stop */
-    outgoing.on('error', (error) => {
-      reject(new ObsidianError(`cannot reach Obsidian at ${target.url}: ${error.message}`, { cause: error }))
-    })
-    outgoing.end(text)
-  })
+  const { status } = await sendToVault(target, 'PUT', path, text)
   if (status !== 200 && status !== 201 && status !== 204) {
     throw new ObsidianError(`Obsidian refused the note: HTTP ${String(status)}`)
   }
   return path
+}
+
+/**
+ * Read one note, so a capture can add to what the vault already holds.
+ * @param target - endpoint, folder and token.
+ * @param path - vault-relative note path.
+ * @returns the note's Markdown, or undefined when the vault holds no note at that path.
+ * @throws ObsidianError when the endpoint answers with anything but the note or its absence.
+ */
+export async function readNote(target: ObsidianTarget, path: string): Promise<string | undefined> {
+  const { status, text } = await sendToVault(target, 'GET', path)
+  if (status === 404) return undefined
+  if (status !== 200) {
+    throw new ObsidianError(`Obsidian refused the note: HTTP ${String(status)}`)
+  }
+  return text
+}
+
+/**
+ * File one capture: the whole note, or one more section added to the note already there.
+ * @param target - endpoint, folder and token.
+ * @param path - vault-relative note path.
+ * @param entry - capture as the Client sent it.
+ * @param day - `YYYY-MM-DD` the capture was saved.
+ * @returns the vault path that was written.
+ * @throws ObsidianError when the endpoint refuses or cannot be reached.
+ */
+export async function fileCapture(
+  target: ObsidianTarget,
+  path: string,
+  entry: ZhihuExportQuery,
+  day: string,
+): Promise<string> {
+  if (entry.excerpt === undefined) return await putNote(target, path, noteText(entry, day))
+  const section = excerptSection(entry.excerpt)
+  const existing = await readNote(target, path)
+  // The same passage filed twice is the same section; the second pick leaves the note alone.
+  if (existing !== undefined && existing.includes(section.trim())) return path
+  const base = (existing ?? noteText(entry, day)).replace(/\n+$/u, '')
+  return await putNote(target, path, `${base}\n\n${section}`)
 }

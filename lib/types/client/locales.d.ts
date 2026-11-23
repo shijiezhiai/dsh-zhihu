@@ -60,10 +60,13 @@ export declare const en: {
     'menu.copyLink': string;
     'menu.copyBody': string;
     'menu.copySelection': string;
+    'menu.copyCitation': string;
     'menu.export': string;
+    'menu.exportExcerpt': string;
     'notice.copied': string;
     'notice.copyFailed': string;
     'export.discussion': string;
+    'export.excerpt': string;
     'export.question': string;
     'export.answer': string;
     'notice.exporting': string;

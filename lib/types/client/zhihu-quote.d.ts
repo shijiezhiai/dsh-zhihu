@@ -94,4 +94,12 @@ export declare function readPassage(target: EventTarget | null): ZhihuPassage | 
  * @returns the instruction, with the passage marked as a quote.
  */
 export declare function zhihuQuotedInstruction(t: ZhihuTranslate, passage: string, instruction: string): string;
+/**
+ * Cite one passage the way a note records it: the text quoted, then where it came from.
+ * @param text - the passage the reader selected.
+ * @param title - title of the row it came from.
+ * @param url - canonical URL of that row.
+ * @returns the passage as a Markdown blockquote followed by a link to its source.
+ */
+export declare function zhihuCitation(text: string, title: string, url: string): string;
 //# sourceMappingURL=zhihu-quote.d.ts.map
