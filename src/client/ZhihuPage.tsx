@@ -414,6 +414,8 @@ export function ZhihuPage(
   const tab = useStore(state => state.tab)
   const query = useStore(state => state.query)
   const scrollTop = useStore(state => state.scrollTop)
+  // A state persisted before the density switch existed restores without it, so the list starts roomy.
+  const density = useStore(state => state.density) ?? 'comfortable'
   const [opened, setOpened] = useState<ZhihuOpenedRow | null>(null)
   /** Whether the reader is looking at their discussions instead of the lanes. */
   const [library, setLibrary] = useState(false)
@@ -984,6 +986,14 @@ export function ZhihuPage(
             {t('panel.refresh')}
           </Button>
         )}
+        <Button
+          variant="ghost"
+          size="sm"
+          aria-pressed={density === 'compact'}
+          onClick={() => { actions.densified(density === 'compact' ? 'comfortable' : 'compact') }}
+        >
+          {t('page.density')}
+        </Button>
         <Button variant="ghost" size="sm" onClick={() => { setLibrary(true) }}>{t('threads.title')}</Button>
       </div>
       {tab === 'search' && (
@@ -1028,6 +1038,7 @@ export function ZhihuPage(
             onOpen={read}
             moves={tab === 'search' ? undefined : moves?.[tab]}
             counted={tab === 'follow'}
+            density={density}
           />
         )}
         {page.status === 'ready' && rows.length > 0 && (

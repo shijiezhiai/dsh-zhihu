@@ -2,6 +2,12 @@
 
 Every tag publishes the prebuilt tarball the plugin-market entry installs, at `https://github.com/shijiezhiai/dsh-zhihu/releases/download/v<version>/dsh-zhihu.tgz`; the asset name stays `dsh-zhihu.tgz`, so a version is identified by its URL.
 
+## 1.7.0
+
+### Added
+
+- The page header carries a `Compact` switch that packs the lists tightly: every excerpt drops to one line and the gaps between rows close, so a narrow pane shows more entries. The roomy setting gives the excerpt two lines. The choice is stored with the page and restored on the next visit.
+
 ## 1.6.0
 
 ### Added

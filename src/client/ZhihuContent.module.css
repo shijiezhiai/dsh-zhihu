@@ -64,11 +64,30 @@
   cursor: pointer;
 }
 
+/* The excerpt is a preview: the opened row carries the whole of it. */
 .excerpt {
+  display: -webkit-box;
   overflow: hidden;
   color: var(--dsw-alias-label-secondary);
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
+/* A compact list trades excerpt lines and spacing for rows on screen. */
+.list[data-density='compact'] {
+  gap: 4px;
+}
+
+.list[data-density='compact'] .row {
+  gap: 0;
+  padding-bottom: 4px;
+}
+
+.list[data-density='compact'] .excerpt {
+  -webkit-line-clamp: 1;
+  line-clamp: 1;
 }
 
 .meta {

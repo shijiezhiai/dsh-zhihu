@@ -8,11 +8,13 @@
   font-size: var(--dsw-font-xs-13);
 }
 
+/* A narrow pane drops the controls to a second line instead of scrolling sideways. */
 .header {
   display: flex;
   flex: none;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
+  gap: 6px 10px;
 }
 
 /* The detail menu is portaled and placed from this span's viewport rect, so the

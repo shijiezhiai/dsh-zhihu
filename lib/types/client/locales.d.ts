@@ -46,6 +46,7 @@ export declare const en: {
     'page.loadMore': string;
     'page.loadingMore': string;
     'page.end': string;
+    'page.density': string;
     'panel.refresh': string;
     'panel.retry': string;
     'panel.back': string;

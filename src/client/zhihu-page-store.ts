@@ -18,6 +18,9 @@ export type ZhihuFeedTab = 'recommend' | 'hot' | 'follow'
 /** Every lane the page switches between. */
 export type ZhihuPageTab = ZhihuFeedTab | 'search'
 
+/** How much room one row of a list takes, and how many lines of its excerpt it shows. */
+export type ZhihuPageDensity = 'compact' | 'comfortable'
+
 /** One lane's loaded rows and the token that continues them; an empty cursor means nothing follows. */
 export interface ZhihuPageLane {
   rows: readonly ZhihuFeedRow[]
@@ -86,6 +89,11 @@ export interface ZhihuPageState {
   /** Vertical offset of the list, so a reopened page resumes where the reader left it. */
   scrollTop: number
   /**
+   * How tightly the lists pack their rows.
+   * A state persisted before the density switch existed restores without the field, so readers default it.
+   */
+  density?: ZhihuPageDensity
+  /**
    * The discussion each row holds, keyed by {@link zhihuRowKey}.
    * A state persisted before discussions existed restores without the field, so readers default it.
    */
@@ -139,6 +147,12 @@ export type ZhihuPageActions = {
    * @param scrollTop - the list's vertical offset.
    */
   scrolled(draft: ZhihuPageState, scrollTop: number): void
+  /**
+   * Pack the lists tightly or roomily.
+   * @param draft - the current state.
+   * @param density - the density the reader picked.
+   */
+  densified(draft: ZhihuPageState, density: ZhihuPageDensity): void
   /**
    * Remember one row's discussion, keeping the line an earlier visit left it at.
    * @param draft - the current state.
@@ -222,6 +236,7 @@ export function createZhihuPageStore(): ZhihuPageStore {
       feeds: { recommend: emptyLane(), hot: emptyLane(), follow: emptyLane() },
       search: emptyLane(),
       scrollTop: 0,
+      density: 'comfortable',
       discussions: {},
       moves: {},
     }),
@@ -241,6 +256,7 @@ export function createZhihuPageStore(): ZhihuPageStore {
         writeLane(draft, tab, { rows: [...current.rows, ...lane.rows], cursor: lane.cursor })
       },
       scrolled: (draft, scrollTop) => { draft.scrollTop = scrollTop },
+      densified: (draft, density) => { draft.density = density },
       remember: (draft, key, entry) => {
         const kept = zhihuDiscussionEntry(draft.discussions?.[key])?.lastLine
         const lastLine = entry.lastLine ?? kept

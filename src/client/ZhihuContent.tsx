@@ -9,7 +9,7 @@ import type { RemoteFailure } from '@deepseek-ai/dsh-api-remotes/client'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ZhihuFeedRow, ZhihuReadItem } from '@deepseek-ai/dsh-zhihu-plugin/types'
 import { zhihuPanelFailureLine } from './zhihu-panel-failure.ts'
-import type { ZhihuRankMove } from './zhihu-page-store.ts'
+import type { ZhihuPageDensity, ZhihuRankMove } from './zhihu-page-store.ts'
 import { zhihuRowKey } from './zhihu-row-key.ts'
 import css from './ZhihuContent.module.css'
 
@@ -73,14 +73,16 @@ function ZhihuRankTag({ move, t }: { readonly move: ZhihuRankMove; readonly t: Z
  * @param props.moves - the marks the lane's latest read left; omitted where nothing ranks a lane.
  * @param props.counted - whether the rows that arrived since the previous read are counted above
  *   them. A stream lane has no position to mark, so its new arrivals are what the reader needs.
+ * @param props.density - how tightly the rows pack and how many lines of an excerpt they show.
  * @returns the notice, an empty state, or the row list.
  */
-export function ZhihuRowList({ rows, t, onOpen, moves, counted = false }: {
+export function ZhihuRowList({ rows, t, onOpen, moves, counted = false, density = 'comfortable' }: {
   readonly rows: readonly ZhihuFeedRow[]
   readonly t: ZhihuTranslate
   readonly onOpen: (row: ZhihuFeedRow) => void
   readonly moves?: Readonly<Record<string, ZhihuRankMove>> | undefined
   readonly counted?: boolean
+  readonly density?: ZhihuPageDensity
 }): ReactNode {
   const buttons = useRef<(HTMLButtonElement | null)[]>([])
   const [active, setActive] = useState(-1)
@@ -152,7 +154,7 @@ export function ZhihuRowList({ rows, t, onOpen, moves, counted = false }: {
   return (
     <>
       <p className={css.notice}>{t('panel.untrusted')}</p>
-      <ol className={css.list} onKeyDown={keyDown}>
+      <ol className={css.list} data-density={density} onKeyDown={keyDown}>
         {rows.map((row, index) => {
           const move = moves?.[zhihuRowKey(row)]
           return (

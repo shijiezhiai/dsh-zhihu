@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import type { RemoteFailure } from '@deepseek-ai/dsh-api-remotes/client';
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
 import type { ZhihuFeedRow, ZhihuReadItem } from '@deepseek-ai/dsh-zhihu-plugin/types';
-import type { ZhihuRankMove } from './zhihu-page-store.ts';
+import type { ZhihuPageDensity, ZhihuRankMove } from './zhihu-page-store.ts';
 /** Copy handle of the Zhihu namespace. */
 export type ZhihuTranslate = PropsLocale<'zhihu'>['t'];
 /**
@@ -37,14 +37,16 @@ export type ZhihuOpenedRow<R extends ZhihuFeedRow = ZhihuFeedRow> = {
  * @param props.moves - the marks the lane's latest read left; omitted where nothing ranks a lane.
  * @param props.counted - whether the rows that arrived since the previous read are counted above
  *   them. A stream lane has no position to mark, so its new arrivals are what the reader needs.
+ * @param props.density - how tightly the rows pack and how many lines of an excerpt they show.
  * @returns the notice, an empty state, or the row list.
  */
-export declare function ZhihuRowList({ rows, t, onOpen, moves, counted }: {
+export declare function ZhihuRowList({ rows, t, onOpen, moves, counted, density }: {
     readonly rows: readonly ZhihuFeedRow[];
     readonly t: ZhihuTranslate;
     readonly onOpen: (row: ZhihuFeedRow) => void;
     readonly moves?: Readonly<Record<string, ZhihuRankMove>> | undefined;
     readonly counted?: boolean;
+    readonly density?: ZhihuPageDensity;
 }): ReactNode;
 /**
  * Render one opened row: its title, body, author line, and the refusal path.
