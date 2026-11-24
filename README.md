@@ -57,6 +57,7 @@ Every setting has a default and is validated at load:
 | `http.maxFeedPages` | `3` | Pages one feed call may walk |
 | `http.answerLimit` | `1` | Answers read with one question |
 | `http.commentPages` | `3` | Pages one comments call may walk |
+| `http.cacheTtlMs` | `60000` | How long a repeated identical request answers from memory; `0` disables the cache |
 | `tool.maxItems` | `20` | Entries one tool call returns |
 | `tool.maxAnswerLimit` | `5` | Answers a tool call may ask for |
 | `tool.excerptMaxChars` | `200` | Excerpt length in feed rows |
@@ -77,12 +78,12 @@ What the reader gets: lanes for hot, recommendation, follow and search that page
 <details>
 <summary>Implementation internals — click to expand</summary>
 
-`src/index.ts` is the only Host entry: its `apply` mounts the `ctx.zhihu` seam, the credentialed HTTP provider, the model tools and the authenticated Remote, while `package.json` declares the browser half through `dsh.client`, so one install covers both planes. The seam answers feeds, reads, search and comments; the provider owns the cookie, the spacing between calls and the typed failures; the tools render what the model reads; and the Remote serves bounded rows to the panel, which never calls Zhihu itself.
+`src/index.ts` is the only Host entry: its `apply` mounts the `ctx.zhihu` seam, the credentialed HTTP provider, the model tools and the authenticated Remote, while `package.json` declares the browser half through `dsh.client`, so one install covers both planes. The seam answers feeds, reads, search and comments; the provider owns the cookie, the spacing between calls, the cache that answers a repeated request from memory for `http.cacheTtlMs` and the typed failures, which carry the wait a throttling response named; the tools render what the model reads; and the Remote serves bounded rows to the panel, which never calls Zhihu itself.
 
 | Source | Contents |
 |---|---|
 | [`src/service/`](src/service/) | The `ctx.zhihu` seam: requests, typed failures, provider selection |
-| [`src/http/`](src/http/) | Credentialed provider: cookie, rate limit, Markdown and text extraction |
+| [`src/http/`](src/http/) | Credentialed provider: cookie, rate limit, response cache, Markdown and text extraction |
 | [`src/tool/`](src/tool/) | `zhihu_feed`, `zhihu_read`, `zhihu_search`, `zhihu_comments` and their rendering |
 | [`src/remote/`](src/remote/) | Authenticated Remote, Obsidian capture, panel projections |
 | [`src/client/`](src/client/) | Panel, reader, passage quoting, discussion segment, discussion list, tool cards |
@@ -168,7 +169,7 @@ Same as the other tools: the declaration never moves, and each call appends its 
 - A passage filed on its own reads the note first and appends one section, so the vault has to serve that note back; a vault that refuses the read reports the refusal and writes nothing. Filing the same passage twice writes nothing the second time, while the same words selected elsewhere in the item append a second section under the same heading.
 - An export files the discussion only while that item's Discussion segment is open in the panel; a discussion resumed later is not read back for the note.
 - The comments endpoint answers at most ten root comments per page in Zhihu's own hotness order, so a call answers one slice of a thread and a larger limit reads further instead of paging back; a challenge page surfaces as `ZHIHU_BLOCKED` rather than as an empty thread.
-- Zhihu throttles: the provider spaces calls by `http.minIntervalMs` and the tools report the failure rather than retrying, so a burst of calls can surface an error the reader has to repeat.
+- Zhihu throttles: the provider spaces calls by `http.minIntervalMs` and the tools report the failure rather than retrying, so a burst of calls can surface an error the reader has to repeat; a throttled response that names a `Retry-After` wait keeps it, and the failure message says how many seconds to wait.
 - An installed tarball is recorded by URL, so a profile upgrades only when it is handed the new release's URL; the plugin-market entry pins one version at a time.
 - The Host half loads at startup, so enabling, disabling or updating the package needs a restart.
 

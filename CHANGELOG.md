@@ -2,6 +2,13 @@
 
 Every tag publishes the prebuilt tarball the plugin-market entry installs, at `https://github.com/shijiezhiai/dsh-zhihu/releases/download/v<version>/dsh-zhihu.tgz`; the asset name stays `dsh-zhihu.tgz`, so a version is identified by its URL.
 
+## 1.6.0
+
+### Added
+
+- A response cache answers a repeated identical request from memory for `http.cacheTtlMs` (default 60 s, `0` disables it), so reopening a lane or rereading an item inside that window costs no upstream request; failures are never stored, so a retry after a throttle reaches Zhihu again.
+- A throttled response's `Retry-After` is kept on the failure as `retryAfterSeconds` and named in its message, so the panel and the tools say how many seconds to wait instead of only that calls were too frequent.
+
 ## 1.5.0
 
 ### Added

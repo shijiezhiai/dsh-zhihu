@@ -46,7 +46,10 @@ export declare class ZhihuHttpClient implements ZhihuTransport {
      * redirected credential-bearing request never reaches a second host (packages/web/AGENTS.md).
      */
     private send;
-    /** Turn a failed response into the classified seam failure. */
+    /**
+     * Turn a failed response into the classified seam failure, carrying the wait a throttling response
+     * asked for so both the message and the error itself can name it.
+     */
     private failure;
 }
 //# sourceMappingURL=client.d.ts.map

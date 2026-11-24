@@ -10,6 +10,7 @@ import { credentialRef, isCredentialRefName } from '@deepseek-ai/dsh-credentials
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import type {} from '../service/index.ts'
+import { ZhihuCachedTransport } from './cache.ts'
 import { ZhihuHttpClient } from './client.ts'
 import { systemClock } from './clock.ts'
 import { ZhihuHttpProvider } from './provider.ts'
@@ -17,6 +18,8 @@ import type { CookieSource } from './types.ts'
 
 const MAX_NODE_TIMER_DELAY_MS = 2_147_483_647
 
+export { ZhihuCachedTransport } from './cache.ts'
+export type { ZhihuCachedTransportOptions } from './cache.ts'
 export { ZhihuHttpClient } from './client.ts'
 export type { ZhihuHttpClientOptions } from './client.ts'
 export { systemClock } from './clock.ts'
@@ -56,6 +59,8 @@ export interface Config {
   readonly searchScanPages?: number
   /** Pages one comments request may read; the endpoint answers at most ten comments per page. */
   readonly commentPages?: number
+  /** How long one response stays usable for an identical request, in milliseconds; 0 disables the cache. */
+  readonly cacheTtlMs?: number
   /** `user-agent` header value. */
   readonly userAgent?: string
 }
@@ -71,6 +76,7 @@ export const Config: z<Config> = z.object({
   answerLimit: z.number().default(1),
   searchScanPages: z.number().default(3),
   commentPages: z.number().default(3),
+  cacheTtlMs: z.number().default(60_000),
   userAgent: z.string().default(DEFAULT_USER_AGENT),
 })
 
@@ -109,6 +115,7 @@ export function apply(ctx: Context, config: Config): void {
   assertPositiveInteger('answerLimit', resolved.answerLimit)
   assertPositiveInteger('searchScanPages', resolved.searchScanPages)
   assertPositiveInteger('commentPages', resolved.commentPages)
+  assertCacheTtlMs(resolved.cacheTtlMs)
   assertCredentialName(resolved.credential)
   assertUserAgent(resolved.userAgent)
   const client = new ZhihuHttpClient({
@@ -118,8 +125,11 @@ export function apply(ctx: Context, config: Config): void {
     requestTimeoutMs: resolved.requestTimeoutMs,
     minIntervalMs: resolved.minIntervalMs,
   })
+  const transport = resolved.cacheTtlMs === 0
+    ? client
+    : new ZhihuCachedTransport({ inner: client, clock: systemClock, ttlMs: resolved.cacheTtlMs })
   ctx.zhihu.registerProvider(new ZhihuHttpProvider({
-    transport: client,
+    transport,
     maxContentChars: resolved.maxContentChars,
     pageSize: resolved.pageSize,
     maxFeedPages: resolved.maxFeedPages,
@@ -146,6 +156,16 @@ function assertTimeoutMs(value: number): void {
 function assertMinIntervalMs(value: number): void {
   if (!Number.isFinite(value) || value < 0 || value > MAX_NODE_TIMER_DELAY_MS) {
     throw new Error(`zhihu-http: minIntervalMs must be a finite number between 0 and ${MAX_NODE_TIMER_DELAY_MS}`)
+  }
+}
+
+/**
+ * Reject a cache lifetime Node cannot compare against, or that no caller could mean.
+ * @param value - configured `cacheTtlMs`, where 0 disables the cache.
+ */
+function assertCacheTtlMs(value: number): void {
+  if (!Number.isInteger(value) || value < 0 || value > MAX_NODE_TIMER_DELAY_MS) {
+    throw new Error(`zhihu-http: cacheTtlMs must be an integer between 0 and ${MAX_NODE_TIMER_DELAY_MS}; 0 disables the cache`)
   }
 }
 

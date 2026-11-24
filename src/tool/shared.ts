@@ -154,7 +154,9 @@ export function describeZhihuFailure(error: unknown): string {
     case 'ZHIHU_LOGIN_REQUIRED':
       return `Zhihu needs a signed-in session (${error.code}): store a zhihu.com browser cookie in the harness credentials store under the reference "zhihu", then retry. Do not paste cookies into this conversation.`
     case 'ZHIHU_RATE_LIMITED':
-      return `Zhihu rate-limited the request (${error.code}): wait before retrying, and ask for fewer entries per call.`
+      return error.retryAfterSeconds === undefined
+        ? `Zhihu rate-limited the request (${error.code}): wait before retrying, and ask for fewer entries per call.`
+        : `Zhihu rate-limited the request (${error.code}): Zhihu asked for ${error.retryAfterSeconds} s before the next request. Wait that long, and ask for fewer entries per call.`
     case 'ZHIHU_BLOCKED':
       return `Zhihu returned a risk-control challenge (${error.code}): open zhihu.com in a browser signed in as the configured account, complete the verification, then retry.`
     case 'ZHIHU_NOT_FOUND':

@@ -43,6 +43,12 @@ export type {
   ZhihuSearchTimeWindow,
 } from './types.ts'
 
+/** Construction inputs for {@link ZhihuError}. */
+export interface ZhihuErrorOptions extends ErrorOptions {
+  /** Whole seconds Zhihu asked the caller to wait, from its `Retry-After` header. */
+  readonly retryAfterSeconds?: number
+}
+
 /**
  * Failure raised by the seam or by a provider. `code` is the machine-readable discriminant; every
  * message is free of credential material, so it is safe to log and to show a model.
@@ -52,13 +58,20 @@ export class ZhihuError extends HarnessError {
   override readonly code: ZhihuErrorCode
 
   /**
+   * Wait Zhihu asked for before the next request, in whole seconds; `undefined` when the response
+   * named none. Present on a rate-limited failure so a caller can say when to try again.
+   */
+  readonly retryAfterSeconds: number | undefined
+
+  /**
    * @param message - human-readable failure description; never contains a cookie.
    * @param code - the discriminant.
-   * @param options - optional `cause`, for the underlying transport failure.
+   * @param options - optional `cause` for the underlying transport failure, and the wait Zhihu named.
    */
-  constructor(message: string, code: ZhihuErrorCode, options?: ErrorOptions) {
+  constructor(message: string, code: ZhihuErrorCode, options?: ZhihuErrorOptions) {
     super(message, code, options)
     this.code = code
+    this.retryAfterSeconds = options?.retryAfterSeconds
   }
 }
 

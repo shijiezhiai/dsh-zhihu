@@ -61,7 +61,7 @@ export class ZhihuHttpClient implements ZhihuTransport {
     await this.waitForSlot()
     const response = await this.send(url, cookie)
     const text = await response.text()
-    if (!response.ok) throw this.failure(response.status, text, cookie)
+    if (!response.ok) throw this.failure(response.status, text, response.headers.get('retry-after'), cookie)
     try {
       return parseLosslessJson(text) as T
     } catch (cause) {
@@ -120,13 +120,41 @@ export class ZhihuHttpClient implements ZhihuTransport {
     }
   }
 
-  /** Turn a failed response into the classified seam failure. */
-  private failure(status: number, text: string, cookie: string): ZhihuError {
+  /**
+   * Turn a failed response into the classified seam failure, carrying the wait a throttling response
+   * asked for so both the message and the error itself can name it.
+   */
+  private failure(status: number, text: string, retryAfter: string | null, cookie: string): ZhihuError {
     const error = errorOf(text)
     const detail = error?.message ?? 'unrecognized response body'
     const kind = classifyFailure(status, error)
-    return new ZhihuError(`Zhihu request failed with HTTP ${status}: ${detail} (${cookieDiagnostics(cookie)})`, zhihuErrorCode(kind))
+    const seconds = retryAfterSeconds(retryAfter, this.options.clock.now())
+    const wait = seconds === undefined ? '' : `, retry after ${seconds} s`
+    return new ZhihuError(
+      `Zhihu request failed with HTTP ${status}: ${detail}${wait} (${cookieDiagnostics(cookie)})`,
+      zhihuErrorCode(kind),
+      seconds === undefined ? undefined : { retryAfterSeconds: seconds },
+    )
   }
+}
+
+/** `Retry-After` sent as delay-seconds, per RFC 9110. */
+const DELAY_SECONDS = /^\d+$/u
+
+/**
+ * Read the wait a response asked for. RFC 9110 allows either delay-seconds or an HTTP-date, and a
+ * date already in the past means "now".
+ * @param header - the `retry-after` header value, or `null` when absent.
+ * @param now - current time in milliseconds, used to age an HTTP-date.
+ * @returns the wait in whole seconds, or `undefined` when the header is absent or unreadable.
+ */
+function retryAfterSeconds(header: string | null, now: number): number | undefined {
+  const value = (header ?? '').trim()
+  if (value === '') return undefined
+  if (DELAY_SECONDS.test(value)) return Number(value)
+  const at = Date.parse(value)
+  if (Number.isNaN(at)) return undefined
+  return Math.max(0, Math.ceil((at - now) / 1_000))
 }
 
 /**

@@ -8,6 +8,8 @@
 import type { Context } from '@deepseek-ai/cordis';
 import z from '@deepseek-ai/schemastery';
 import type { CookieSource } from './types.ts';
+export { ZhihuCachedTransport } from './cache.ts';
+export type { ZhihuCachedTransportOptions } from './cache.ts';
 export { ZhihuHttpClient } from './client.ts';
 export type { ZhihuHttpClientOptions } from './client.ts';
 export { systemClock } from './clock.ts';
@@ -43,6 +45,8 @@ export interface Config {
     readonly searchScanPages?: number;
     /** Pages one comments request may read; the endpoint answers at most ten comments per page. */
     readonly commentPages?: number;
+    /** How long one response stays usable for an identical request, in milliseconds; 0 disables the cache. */
+    readonly cacheTtlMs?: number;
     /** `user-agent` header value. */
     readonly userAgent?: string;
 }
