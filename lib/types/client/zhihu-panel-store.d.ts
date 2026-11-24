@@ -11,8 +11,8 @@ import type { RemoteFailure } from '@deepseek-ai/dsh-api-remotes/client';
 import { type EngineStoreHandle } from '@deepseek-ai/dsh-client-store';
 import type { TabId } from '@deepseek-ai/dsh-client-ui-dockkit';
 import type { ZhihuFeedQuery, ZhihuFeedRow, ZhihuReadItem } from '@deepseek-ai/dsh-zhihu-plugin/types';
-/** The feed segments the panel can show. */
-export type ZhihuPanelSegment = ZhihuFeedQuery['kind'];
+/** The feed segments the panel can show. A topic lane needs a keyword, so it stays on the full page. */
+export type ZhihuPanelSegment = Exclude<ZhihuFeedQuery['kind'], 'topic'>;
 /** What the panel knows about one segment of one tab. */
 export type ZhihuPanelFeed = {
     readonly status: 'idle';

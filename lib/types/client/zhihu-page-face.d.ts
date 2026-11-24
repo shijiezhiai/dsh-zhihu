@@ -23,9 +23,10 @@ export interface ZhihuPageFace {
      * Request one feed page.
      * @param kind - which feed to read.
      * @param cursor - continuation token from the previous page; omitted reads the first page.
+     * @param topic - keyword a `topic` feed lists; ignored by every other kind.
      * @returns the rows and the token that continues the feed, or the refusal.
      */
-    feed(kind: ZhihuFeedQuery['kind'], cursor?: string): Promise<ZhihuPageOutcome<ZhihuFeedResult>>;
+    feed(kind: ZhihuFeedQuery['kind'], cursor?: string, topic?: string): Promise<ZhihuPageOutcome<ZhihuFeedResult>>;
     /**
      * Run one search.
      * @param query - non-empty query text.

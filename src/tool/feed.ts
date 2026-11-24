@@ -67,9 +67,10 @@ const FEED_LABELS: Readonly<Record<ZhihuFeedKind, string>> = {
   hot: 'Zhihu hot list',
   recommend: 'Zhihu recommendation feed',
   follow: 'Zhihu follow feed',
+  topic: 'Zhihu topic feed',
 }
 
-const FEED_DESCRIPTION = 'Read Zhihu\'s own feeds. kind \'hot\' returns the site-wide hot list; kind \'recommend\' returns the recommendation stream of the signed-in account; kind \'follow\' returns what the accounts it follows published. Zhihu content needs the account\'s login state and web_fetch cannot retrieve it: Zhihu answers 403 or a risk-control challenge page. Ids are decimal strings of varying length; a long one loses precision if treated as a number, so pass it back exactly as returned. Each id can go to zhihu_read; an article row also needs its title, copied exactly as its line shows it. Failures name their cause: ZHIHU_LOGIN_REQUIRED means no Zhihu cookie is stored, ZHIHU_RATE_LIMITED means the calls are too frequent, and ZHIHU_BLOCKED means a verification challenge is pending. Report the cause instead of repeating the same call.'
+const FEED_DESCRIPTION = 'Read Zhihu\'s own feeds. kind \'hot\' returns the site-wide hot list; kind \'recommend\' returns the recommendation stream of the signed-in account; kind \'follow\' returns what the accounts it follows published; kind \'topic\' returns what a search for the topic keyword finds, in relevance order, and continues from its own cursor. Zhihu content needs the account\'s login state and web_fetch cannot retrieve it: Zhihu answers 403 or a risk-control challenge page. Ids are decimal strings of varying length; a long one loses precision if treated as a number, so pass it back exactly as returned. Each id can go to zhihu_read; an article row also needs its title, copied exactly as its line shows it. Failures name their cause: ZHIHU_LOGIN_REQUIRED means no Zhihu cookie is stored, ZHIHU_RATE_LIMITED means the calls are too frequent, and ZHIHU_BLOCKED means a verification challenge is pending. Report the cause instead of repeating the same call.'
 
 /**
  * Project one seam entry into the canonical value, bounding the excerpt so the
@@ -137,8 +138,11 @@ export function formatFeedOutput(value: ZhihuFeedValue): string {
  */
 function feedTitle(args: unknown): string | undefined {
   const kind = readString(args, 'kind')
-  if (kind !== 'hot' && kind !== 'recommend' && kind !== 'follow') return undefined
-  return kind === 'hot' ? 'Zhihu hot list' : kind === 'recommend' ? 'Zhihu recommendations' : 'Zhihu follow feed'
+  if (kind === 'hot') return 'Zhihu hot list'
+  if (kind === 'recommend') return 'Zhihu recommendations'
+  if (kind === 'follow') return 'Zhihu follow feed'
+  if (kind === 'topic') return 'Zhihu topic feed'
+  return undefined
 }
 
 /**
@@ -178,8 +182,12 @@ export function applyZhihuFeedTool(ctx: Context, limits: ZhihuToolLimits): void 
       kind: {
         type: 'string',
         required: true,
-        enum: ['hot', 'recommend', 'follow'],
-        description: "'hot' lists the site-wide hot list; 'recommend' lists the recommendation stream of the signed-in account; 'follow' lists what the accounts it follows published.",
+        enum: ['hot', 'recommend', 'follow', 'topic'],
+        description: "'hot' lists the site-wide hot list; 'recommend' lists the recommendation stream of the signed-in account; 'follow' lists what the accounts it follows published; 'topic' lists what a search for the topic keyword finds.",
+      },
+      topic: {
+        type: 'string',
+        description: "Keyword a 'topic' feed lists, matched by Zhihu's own search: required for 'topic' and ignored by every other kind.",
       },
       limit: {
         type: 'number',
@@ -191,7 +199,7 @@ export function applyZhihuFeedTool(ctx: Context, limits: ZhihuToolLimits): void 
         type: 'object',
         additionalProperties: false,
         properties: {
-          kind: { type: 'string', required: true, enum: ['hot', 'recommend', 'follow'] },
+          kind: { type: 'string', required: true, enum: ['hot', 'recommend', 'follow', 'topic'] },
           limit: { type: 'number', required: true },
           items: {
             type: 'array',
@@ -220,9 +228,17 @@ export function applyZhihuFeedTool(ctx: Context, limits: ZhihuToolLimits): void 
     isConcurrencySafe: () => true,
     async execute(args) {
       const limit = resolveLimit(args.limit, 'limit', maxItems)
+      const topic = readString(args, 'topic')?.trim() ?? ''
+      if (args.kind === 'topic' && topic.length === 0) {
+        throw new Error('topic must not be empty for a topic feed')
+      }
       let items: readonly ZhihuFeedItem[]
       try {
-        items = (await ctx.zhihu.feed({ kind: args.kind, limit })).items
+        items = (await ctx.zhihu.feed({
+          kind: args.kind,
+          limit,
+          ...(args.kind === 'topic' ? { topic } : {}),
+        })).items
       } catch (error) {
         throw new Error(describeZhihuFailure(error), { cause: error })
       }

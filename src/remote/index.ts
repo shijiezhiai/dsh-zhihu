@@ -232,8 +232,14 @@ export default class ZhihuController extends TypertRemoteService {
   private resolve(request: ZhihuFeedQuery): ZhihuFeedRequest {
     const limit = request.limit === undefined ? this.config.defaultLimit : requireLimit(request.limit)
     const cursor = request.cursor
-    const resolved = { kind: request.kind, limit: Math.min(limit, this.config.maxLimit) }
-    return cursor === undefined ? resolved : { ...resolved, cursor }
+    const capped = Math.min(limit, this.config.maxLimit)
+    const continuation = cursor === undefined ? {} : { cursor }
+    if (request.kind !== 'topic') return { kind: request.kind, limit: capped, ...continuation }
+    const topic = request.topic?.trim() ?? ''
+    if (topic.length === 0) {
+      throw new RemoteError('gateway/bad-request', 'topic must not be empty for a topic feed', {})
+    }
+    return { kind: 'topic', topic, limit: capped, ...continuation }
   }
 
   /**

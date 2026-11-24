@@ -38,8 +38,13 @@ export type ZhihuRemoteFailureCode =
 
 /** One feed request; the Host applies its own default and cap to `limit`. */
 export interface ZhihuFeedQuery {
-  /** Feed to read: the hot list, the recommendation stream, or the accounts followed. */
-  readonly kind: 'hot' | 'recommend' | 'follow'
+  /**
+   * Feed to read: the hot list, the recommendation stream, the accounts followed, or a keyword's
+   * entries.
+   */
+  readonly kind: 'hot' | 'recommend' | 'follow' | 'topic'
+  /** Keyword a `topic` feed lists; required for `topic` and ignored by every other feed. */
+  readonly topic?: string
   /** Requested row count; omitted uses the configured default. */
   readonly limit?: number
   /** Continuation token from a previous page; omitted reads the first page. */

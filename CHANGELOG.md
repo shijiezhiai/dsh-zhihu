@@ -2,6 +2,12 @@
 
 Every tag publishes the prebuilt tarball the plugin-market entry installs, at `https://github.com/shijiezhiai/dsh-zhihu/releases/download/v<version>/dsh-zhihu.tgz`; the asset name stays `dsh-zhihu.tgz`, so a version is identified by its URL.
 
+## 1.8.0
+
+### Added
+
+- A `topic` lane watches a keyword: the page takes the keyword the reader submits, lists what Zhihu's own search finds for it, pages it the same way as the other feeds and marks what the lane gained since its last read. `zhihu_feed` serves the same lane through `kind: 'topic'` plus that keyword, continuing from the cursor of the previous page.
+
 ## 1.7.0
 
 ### Added

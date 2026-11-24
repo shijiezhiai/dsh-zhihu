@@ -39,9 +39,12 @@ export declare const en: {
     'panel.segment.hot': string;
     'panel.segment.recommend': string;
     'panel.segment.follow': string;
+    'panel.segment.topic': string;
     'panel.segment.search': string;
     'page.title': string;
+    'page.topicPlaceholder': string;
     'page.searchPlaceholder': string;
+    'page.topicAction': string;
     'page.searchAction': string;
     'page.loadMore': string;
     'page.loadingMore': string;

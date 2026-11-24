@@ -22,7 +22,7 @@ export type ZhihuErrorCode =
   | 'ZHIHU_PROVIDER_AMBIGUOUS'
 
 /** Feed sources `feed()` can list. */
-export type ZhihuFeedKind = 'hot' | 'recommend' | 'follow'
+export type ZhihuFeedKind = 'hot' | 'recommend' | 'follow' | 'topic'
 
 /** Content kinds a feed item, read result, or search hit can describe. */
 export type ZhihuContentKind = 'question' | 'answer' | 'article'
@@ -37,6 +37,11 @@ export type ZhihuReadKind = 'question' | 'answer' | 'article'
 export interface ZhihuFeedRequest {
   /** Which feed to list. */
   readonly kind: ZhihuFeedKind
+  /**
+   * Keyword a `topic` feed lists: the entries a search for it returns, in the endpoint's own
+   * relevance order. Required for `topic`, ignored by every other feed.
+   */
+  readonly topic?: string
   /** Upper bound on returned items. Omitted = the provider's default page size. */
   readonly limit?: number
   /**

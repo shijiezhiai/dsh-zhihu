@@ -13,7 +13,7 @@ import type { ZhihuQuoteSource } from './zhihu-quote.ts'
 import { zhihuRowKey } from './zhihu-row-key.ts'
 
 /** The lanes the page pages through the feed Remote. */
-export type ZhihuFeedTab = 'recommend' | 'hot' | 'follow'
+export type ZhihuFeedTab = 'recommend' | 'hot' | 'follow' | 'topic'
 
 /** Every lane the page switches between. */
 export type ZhihuPageTab = ZhihuFeedTab | 'search'
@@ -82,8 +82,16 @@ export interface ZhihuPageState {
   tab: ZhihuPageTab
   /** The search text the input shows. */
   query: string
-  /** The loaded content of each feed lane. */
-  feeds: Record<ZhihuFeedTab, ZhihuPageLane>
+  /**
+   * The keyword the topic lane reads, as its input shows it.
+   * A state persisted before topic lanes existed restores without the field, so readers default it.
+   */
+  topic?: string
+  /**
+   * The loaded content of each feed lane. A state persisted before topic lanes existed restores
+   * without one, so readers go through {@link zhihuLane}.
+   */
+  feeds: Partial<Record<ZhihuFeedTab, ZhihuPageLane>>
   /** The loaded content of the search lane. */
   search: ZhihuPageLane
   /** Vertical offset of the list, so a reopened page resumes where the reader left it. */
@@ -127,6 +135,12 @@ export type ZhihuPageActions = {
    * @param query - the text the input now shows.
    */
   typed(draft: ZhihuPageState, query: string): void
+  /**
+   * Record the keyword the reader is watching.
+   * @param draft - the current state.
+   * @param topic - the text the topic input now shows.
+   */
+  topicTyped(draft: ZhihuPageState, topic: string): void
   /**
    * Replace one lane with a first page.
    * @param draft - the current state.
@@ -190,6 +204,16 @@ function emptyLane(): ZhihuPageLane {
 }
 
 /**
+ * Read one lane of a stored page.
+ * @param state - the page state.
+ * @param tab - the lane to read.
+ * @returns the stored lane, or an empty one when the state predates that lane.
+ */
+export function zhihuLane(state: ZhihuPageState, tab: ZhihuFeedTab): ZhihuPageLane {
+  return state.feeds[tab] ?? emptyLane()
+}
+
+/**
  * Mark how the rows of a first page moved against the rows the lane listed before it.
  * @param previous - the rows the lane held before this read, in their order; empty when nothing
  * was read yet, which leaves nothing to compare against.
@@ -233,7 +257,8 @@ export function createZhihuPageStore(): ZhihuPageStore {
     init: (): ZhihuPageState => ({
       tab: 'recommend',
       query: '',
-      feeds: { recommend: emptyLane(), hot: emptyLane(), follow: emptyLane() },
+      topic: '',
+      feeds: { recommend: emptyLane(), hot: emptyLane(), follow: emptyLane(), topic: emptyLane() },
       search: emptyLane(),
       scrollTop: 0,
       density: 'comfortable',
@@ -244,15 +269,16 @@ export function createZhihuPageStore(): ZhihuPageStore {
     actions: {
       show: (draft, tab) => { draft.tab = tab },
       typed: (draft, query) => { draft.query = query },
+      topicTyped: (draft, topic) => { draft.topic = topic },
       loaded: (draft, tab, lane) => {
-        // Search hits answer one query and carry no standing position, so only a feed lane is ranked.
+        // Search hits answer one query and carry no standing position, so every feed lane is ranked.
         if (tab !== 'search') {
-          draft.moves = { ...draft.moves, [tab]: rankLane(draft.feeds[tab].rows, lane.rows) }
+          draft.moves = { ...draft.moves, [tab]: rankLane(zhihuLane(draft, tab).rows, lane.rows) }
         }
         writeLane(draft, tab, lane)
       },
       appended: (draft, tab, lane) => {
-        const current = tab === 'search' ? draft.search : draft.feeds[tab]
+        const current = tab === 'search' ? draft.search : zhihuLane(draft, tab)
         writeLane(draft, tab, { rows: [...current.rows, ...lane.rows], cursor: lane.cursor })
       },
       scrolled: (draft, scrollTop) => { draft.scrollTop = scrollTop },

@@ -10,7 +10,7 @@
  */
 export type ZhihuErrorCode = 'ZHIHU_LOGIN_REQUIRED' | 'ZHIHU_RATE_LIMITED' | 'ZHIHU_BLOCKED' | 'ZHIHU_NOT_FOUND' | 'ZHIHU_BAD_RESPONSE' | 'ZHIHU_DUPLICATE_PROVIDER' | 'ZHIHU_PROVIDER_CONFIGURED_MISSING' | 'ZHIHU_PROVIDER_CONFIGURED_UNAVAILABLE' | 'ZHIHU_PROVIDER_UNAVAILABLE' | 'ZHIHU_PROVIDER_AMBIGUOUS';
 /** Feed sources `feed()` can list. */
-export type ZhihuFeedKind = 'hot' | 'recommend' | 'follow';
+export type ZhihuFeedKind = 'hot' | 'recommend' | 'follow' | 'topic';
 /** Content kinds a feed item, read result, or search hit can describe. */
 export type ZhihuContentKind = 'question' | 'answer' | 'article';
 /** Content kinds `read()` can load by id. */
@@ -22,6 +22,11 @@ export type ZhihuReadKind = 'question' | 'answer' | 'article';
 export interface ZhihuFeedRequest {
     /** Which feed to list. */
     readonly kind: ZhihuFeedKind;
+    /**
+     * Keyword a `topic` feed lists: the entries a search for it returns, in the endpoint's own
+     * relevance order. Required for `topic`, ignored by every other feed.
+     */
+    readonly topic?: string;
     /** Upper bound on returned items. Omitted = the provider's default page size. */
     readonly limit?: number;
     /**

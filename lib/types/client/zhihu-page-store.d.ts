@@ -11,7 +11,7 @@ import type { SessionId } from '@deepseek-ai/dsh-session/types';
 import type { ZhihuFeedRow } from '@deepseek-ai/dsh-zhihu-plugin/types';
 import type { ZhihuQuoteSource } from './zhihu-quote.ts';
 /** The lanes the page pages through the feed Remote. */
-export type ZhihuFeedTab = 'recommend' | 'hot' | 'follow';
+export type ZhihuFeedTab = 'recommend' | 'hot' | 'follow' | 'topic';
 /** Every lane the page switches between. */
 export type ZhihuPageTab = ZhihuFeedTab | 'search';
 /** How much room one row of a list takes, and how many lines of its excerpt it shows. */
@@ -70,8 +70,17 @@ export interface ZhihuPageState {
     tab: ZhihuPageTab;
     /** The search text the input shows. */
     query: string;
+    /**
+     * The keyword the topic lane reads, as its input shows it.
+     * A state persisted before topic lanes existed restores without the field, so readers default it.
+     */
+    topic?: string;
     /** The loaded content of each feed lane. */
-    feeds: Record<ZhihuFeedTab, ZhihuPageLane>;
+    /**
+     * The loaded content of each feed lane. A state persisted before topic lanes existed restores
+     * without one, so readers go through {@link zhihuLane}.
+     */
+    feeds: Partial<Record<ZhihuFeedTab, ZhihuPageLane>>;
     /** The loaded content of the search lane. */
     search: ZhihuPageLane;
     /** Vertical offset of the list, so a reopened page resumes where the reader left it. */
@@ -114,6 +123,12 @@ export type ZhihuPageActions = {
      * @param query - the text the input now shows.
      */
     typed(draft: ZhihuPageState, query: string): void;
+    /**
+     * Record the keyword the reader is watching.
+     * @param draft - the current state.
+     * @param topic - the text the topic input now shows.
+     */
+    topicTyped(draft: ZhihuPageState, topic: string): void;
     /**
      * Replace one lane with a first page.
      * @param draft - the current state.
@@ -169,6 +184,13 @@ export type ZhihuPageActions = {
 };
 /** The store handle the `main` registration declares and the page reads. */
 export type ZhihuPageStore = EngineStoreHandle<ZhihuPageState, ZhihuPageActions>;
+/**
+ * Read one lane of a stored page.
+ * @param state - the page state.
+ * @param tab - the lane to read.
+ * @returns the stored lane, or an empty one when the state predates that lane.
+ */
+export declare function zhihuLane(state: ZhihuPageState, tab: ZhihuFeedTab): ZhihuPageLane;
 /**
  * Declare the page store, persisted so a reopened page keeps its lane, its rows and its offset.
  * @returns a fresh store handle for the `main` registration.

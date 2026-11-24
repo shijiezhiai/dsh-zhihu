@@ -36,9 +36,10 @@ export interface ZhihuPageFace {
    * Request one feed page.
    * @param kind - which feed to read.
    * @param cursor - continuation token from the previous page; omitted reads the first page.
+   * @param topic - keyword a `topic` feed lists; ignored by every other kind.
    * @returns the rows and the token that continues the feed, or the refusal.
    */
-  feed(kind: ZhihuFeedQuery['kind'], cursor?: string): Promise<ZhihuPageOutcome<ZhihuFeedResult>>
+  feed(kind: ZhihuFeedQuery['kind'], cursor?: string, topic?: string): Promise<ZhihuPageOutcome<ZhihuFeedResult>>
   /**
    * Run one search.
    * @param query - non-empty query text.
@@ -77,12 +78,13 @@ export function zhihuPageFace(resolveRemote: () => ClientRemote['zhihu'] | undef
     }
   }
   return {
-    async feed(kind, cursor) {
+    async feed(kind, cursor, topic) {
       const remote = resolveRemote()
       if (remote === undefined) return unavailable(kind)
+      const keyword = kind !== 'topic' || topic === undefined ? {} : { topic }
       const request: ZhihuFeedQuery = cursor === undefined
-        ? { kind, limit: PAGE_LIMIT }
-        : { kind, limit: PAGE_LIMIT, cursor }
+        ? { kind, limit: PAGE_LIMIT, ...keyword }
+        : { kind, limit: PAGE_LIMIT, cursor, ...keyword }
       const result = await remote.feed(request)
       return result.ok ? { ok: true, value: result.value } : { ok: false, failure: result.error }
     },

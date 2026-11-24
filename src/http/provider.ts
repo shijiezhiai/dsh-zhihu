@@ -109,6 +109,16 @@ export class ZhihuHttpProvider implements ZhihuProvider {
    */
   async feed(request: ZhihuFeedRequest): Promise<ZhihuFeedPage> {
     const limit = request.limit ?? this.options.pageSize
+    // A topic feed is the search endpoint's own order, so it continues from the search offset
+    // rather than from a feed URL.
+    if (request.kind === 'topic') {
+      const page = await this.search({
+        query: request.topic ?? '',
+        limit,
+        ...(request.cursor === undefined ? {} : { cursor: request.cursor }),
+      })
+      return { items: page.items, ...(page.cursor === undefined ? {} : { cursor: page.cursor }) }
+    }
     if (request.kind === 'hot') {
       const body = await this.options.transport.get<ZhihuListBody<ZhihuHotItem>>(
         `${API_ROOT}/api/v3/feed/topstory/hot-lists/total?limit=${limit}`,

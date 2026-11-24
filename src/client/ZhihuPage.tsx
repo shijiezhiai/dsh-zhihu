@@ -40,6 +40,7 @@ import type { ZhihuPageFace } from './zhihu-page-face.ts'
 import {
   zhihuDiscussionEntry,
   zhihuDiscussionSession,
+  zhihuLane,
   type ZhihuFeedTab,
   type ZhihuPageStore,
   type ZhihuPageTab,
@@ -54,7 +55,7 @@ type FeedTab = ZhihuFeedTab
 /** The page's lanes, recommended first. */
 type PageTab = ZhihuPageTab
 
-const LANES: readonly PageTab[] = ['recommend', 'hot', 'follow', 'search']
+const LANES: readonly PageTab[] = ['recommend', 'hot', 'follow', 'topic', 'search']
 
 /** The comparison a fresh or pre-comparison state holds. One instance, so the bar's identity is stable. */
 const EMPTY_COMPARISON: readonly ZhihuQuoteSource[] = []
@@ -90,6 +91,7 @@ const TAB_KEYS = {
   recommend: 'panel.segment.recommend',
   hot: 'panel.segment.hot',
   follow: 'panel.segment.follow',
+  topic: 'panel.segment.topic',
   search: 'panel.segment.search',
 } as const satisfies Record<PageTab, ZhihuKey>
 
@@ -154,17 +156,19 @@ function stallLine(seat: ZhihuDiscussionSeat, t: ZhihuTranslate): string {
  * @param active - whether this lane is the one on screen; an inactive lane stays untouched.
  * @param useStore - the page store's read seat.
  * @param actions - the page store's write seat.
+ * @param topic - the keyword a `topic` lane reads; absent for every other lane.
  * @returns the lane's page, whether a continuation is in flight, whether the lane opened with stored rows, and the two requests.
  */
-function useFeedLane(face: ZhihuPageFace, kind: FeedTab, active: boolean, useStore: PageSelector, actions: PageActions): {
+function useFeedLane(face: ZhihuPageFace, kind: FeedTab, active: boolean, useStore: PageSelector, actions: PageActions, topic?: string): {
   readonly page: FeedPage
   readonly appending: boolean
   readonly restored: boolean
   readonly reload: () => void
   readonly loadMore: () => void
 } {
-  const rows = useStore(state => state.feeds[kind].rows)
-  const cursor = useStore(state => state.feeds[kind].cursor)
+  const stored = useStore(state => zhihuLane(state, kind))
+  const rows = stored.rows
+  const cursor = stored.cursor
   const [phase, setPhase] = useState<LanePhase>(() => (rows.length > 0 ? { status: 'ready' } : { status: 'idle' }))
   const [appending, setAppending] = useState(false)
   /** Latest request of this lane, so an answer for an abandoned page writes nothing. */
@@ -176,14 +180,27 @@ function useFeedLane(face: ZhihuPageFace, kind: FeedTab, active: boolean, useSto
   /** A lane that opened with stored rows asks for nothing until the reader scrolls or refreshes. */
   const restored = rows.length > 0 && !asked.current
 
+  /** The keyword this lane last asked for, so a new one is read once and an unchanged one is not. */
+  const wantedTopic = useRef<string | undefined>(undefined)
+
   const request = useCallback((continuation?: string) => {
+    const keyword = kind === 'topic' ? (topic ?? '').trim() : undefined
+    // A topic lane with no keyword has nothing to read and asks for nothing.
+    if (keyword === '') {
+      setPhase({ status: 'idle' })
+      return
+    }
+    wantedTopic.current = keyword
     const current = generation.current + 1
     generation.current = current
     inFlight.current = true
     asked.current = true
     if (continuation === undefined) setPhase({ status: 'loading' })
     else setAppending(true)
-    void face.feed(kind, continuation).then((result) => {
+    const answer = kind === 'topic'
+      ? face.feed(kind, continuation, keyword)
+      : face.feed(kind, continuation)
+    void answer.then((result) => {
       inFlight.current = false
       if (current !== generation.current) return
       setAppending(false)
@@ -199,17 +216,21 @@ function useFeedLane(face: ZhihuPageFace, kind: FeedTab, active: boolean, useSto
       else actions.appended(kind, { rows: result.value.rows, cursor: next })
       setPhase({ status: 'ready' })
     })
-  }, [actions, face, kind])
+  }, [actions, face, kind, topic])
 
   useEffect(() => {
-    if (active && phase.status === 'idle') request()
-  }, [active, phase.status, request])
+    // A topic lane waits for the keyword the reader submits; a lane that names its own feed reads on activation.
+    if (active && phase.status === 'idle' && kind !== 'topic') request()
+  }, [active, kind, phase.status, request])
+
 
   const reload = useCallback(() => { request() }, [request])
   const loadMore = useCallback(() => {
     if (inFlight.current || phase.status !== 'ready' || cursor === '' || appending) return
+    // A continuation belongs to the keyword the rows were read for, not to the one being typed.
+    if (kind === 'topic' && (topic ?? '').trim() !== wantedTopic.current) return
     request(cursor)
-  }, [appending, cursor, phase.status, request])
+  }, [appending, cursor, kind, phase.status, request, topic])
 
   const page = useMemo<FeedPage>(() => {
     if (phase.status === 'failed') return { status: 'failed', rows: [], failure: phase.failure }
@@ -413,6 +434,7 @@ export function ZhihuPage(
 ): ReactNode {
   const tab = useStore(state => state.tab)
   const query = useStore(state => state.query)
+  const topic = useStore(state => state.topic) ?? ''
   const scrollTop = useStore(state => state.scrollTop)
   // A state persisted before the density switch existed restores without it, so the list starts roomy.
   const density = useStore(state => state.density) ?? 'comfortable'
@@ -458,11 +480,13 @@ export function ZhihuPage(
   const recommended = useFeedLane(face, 'recommend', tab === 'recommend' && opened === null, useStore, actions)
   const hot = useFeedLane(face, 'hot', tab === 'hot' && opened === null, useStore, actions)
   const follow = useFeedLane(face, 'follow', tab === 'follow' && opened === null, useStore, actions)
+  const watched = useFeedLane(face, 'topic', tab === 'topic' && opened === null, useStore, actions, topic)
   const search = useSearchLane(face, useStore, actions)
   const lanes: Readonly<Record<FeedTab, ReturnType<typeof useFeedLane>>> = {
     recommend: recommended,
     hot,
     follow,
+    topic: watched,
   }
   const lane = tab === 'search' ? search : lanes[tab]
   /** Reloads the lane on screen; the search lane re-runs its form instead. */
@@ -996,6 +1020,23 @@ export function ZhihuPage(
         </Button>
         <Button variant="ghost" size="sm" onClick={() => { setLibrary(true) }}>{t('threads.title')}</Button>
       </div>
+      {tab === 'topic' && (
+        <form
+          className={css.searchBar}
+          onSubmit={(event) => {
+            event.preventDefault()
+            watched.reload()
+          }}
+        >
+          <Input
+            value={topic}
+            placeholder={t('page.topicPlaceholder')}
+            aria-label={t('page.topicPlaceholder')}
+            onChange={(event) => { actions.topicTyped(event.target.value) }}
+          />
+          <Button variant="outline" size="sm" type="submit">{t('page.topicAction')}</Button>
+        </form>
+      )}
       {tab === 'search' && (
         <form
           className={css.searchBar}
