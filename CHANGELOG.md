@@ -2,6 +2,13 @@
 
 Every tag publishes the prebuilt tarball the plugin-market entry installs, at `https://github.com/shijiezhiai/dsh-zhihu/releases/download/v<version>/dsh-zhihu.tgz`; the asset name stays `dsh-zhihu.tgz`, so a version is identified by its URL.
 
+## 1.9.0
+
+### Added
+
+- `zhihu_watch` follows one keyword lane on a schedule wherever the profile mounts the Host Schedule service: `start` records the lane's current ids and creates a recurring reminder, `check` reports only the entries that arrived since, each with its title and link, and `stop` removes that reminder. Nothing is declared when the service is absent.
+- `zhihu_feed` takes the `cursor` an earlier answer returned and reports the cursor that continues the feed, so a keyword lane pages from the model side as it does in the panel.
+
 ## 1.8.0
 
 ### Added

@@ -75,7 +75,6 @@ export interface ZhihuPageState {
      * A state persisted before topic lanes existed restores without the field, so readers default it.
      */
     topic?: string;
-    /** The loaded content of each feed lane. */
     /**
      * The loaded content of each feed lane. A state persisted before topic lanes existed restores
      * without one, so readers go through {@link zhihuLane}.

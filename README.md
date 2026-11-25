@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-One installable package puts Zhihu inside the harness: four model tools read the hot and recommendation feeds, one answer or column post, search results and an item's root comments, and the same package draws a sidebar panel where a reader opens those rows, quotes a passage, discusses the item in a real Session and writes it to Obsidian. Nothing model-facing appears until a profile enables the plugin.
+One installable package puts Zhihu inside the harness: four model tools read the hot and recommendation feeds, one answer or column post, search results and an item's root comments, a fifth follows one keyword on a schedule where the profile mounts the Host Schedule service, and the same package draws a sidebar panel where a reader opens those rows, quotes a passage, discusses the item in a real Session and writes it to Obsidian. Nothing model-facing appears until a profile enables the plugin.
 
 ## Table of Contents
 
@@ -84,7 +84,7 @@ What the reader gets: lanes for hot, recommendation, follow, a watched keyword a
 |---|---|
 | [`src/service/`](src/service/) | The `ctx.zhihu` seam: requests, typed failures, provider selection |
 | [`src/http/`](src/http/) | Credentialed provider: cookie, rate limit, response cache, Markdown and text extraction |
-| [`src/tool/`](src/tool/) | `zhihu_feed`, `zhihu_read`, `zhihu_search`, `zhihu_comments` and their rendering |
+| [`src/tool/`](src/tool/) | `zhihu_feed`, `zhihu_read`, `zhihu_search`, `zhihu_comments`, `zhihu_watch` and their rendering |
 | [`src/remote/`](src/remote/) | Authenticated Remote, Obsidian capture, panel projections |
 | [`src/client/`](src/client/) | Panel, reader, passage quoting, discussion segment, discussion list, tool cards |
 | [`tests/`](tests/) | Provider, tool, Remote and client tests |
@@ -106,7 +106,7 @@ What the reader gets: lanes for hot, recommendation, follow, a watched keyword a
 
 #### What the model sees
 
-`zhihu_feed` is declared once per Session of a profile that enables the plugin, with `kind` (`hot`, `recommend`, `follow` or `topic`) and `limit`; a `topic` call also carries the keyword it lists, matched by Zhihu's own search, and continues from the cursor the previous page returned. A call returns the untrusted-content notice, a labelled list with one link per entry, and a follow-up that names `zhihu_read` for the entry the model picks; every row is readable that way, and an article row needs its id plus the title its own line shows. Excerpts are cut at `tool.excerptMaxChars`, and a failure carries its reason instead of rows.
+`zhihu_feed` is declared once per Session of a profile that enables the plugin, with `kind` (`hot`, `recommend`, `follow` or `topic`), `limit` and an optional `cursor`; a `topic` call also carries the keyword it lists, matched by Zhihu's own search. An answer that a later page follows reports its cursor and names it, so the model continues the feed by passing that token back. A call returns the untrusted-content notice, a labelled list with one link per entry, and a follow-up that names `zhihu_read` for the entry the model picks; every row is readable that way, and an article row needs its id plus the title its own line shows. Excerpts are cut at `tool.excerptMaxChars`, and a failure carries its reason instead of rows.
 
 #### Token effect
 
@@ -115,6 +115,20 @@ The declaration rides every request of that Session; a call adds the notice, up 
 #### KV Cache effect
 
 The declarations never change between steps of a Session, so the cached prefix survives every call and results append to the log as ordinary tool results.
+
+### Watch tool
+
+#### What the model sees
+
+`zhihu_watch` appears only where the profile mounts the Host Schedule service; without it the four content tools are the whole declaration. `action` is `start`, `check` or `stop`, `keyword` names the lane, and `start` also takes `everyMinutes` from 1 through 1440. `start` reads the lane, records those ids as the baseline and creates one Host reminder titled `Zhihu watch: <keyword>` whose follow-up asks for a `check`; `check` answers only the entries the lane gained since the previous start or check, each with its title and its link; `stop` removes the reminders this tool created for that keyword. A `start` refuses rather than duplicating a reminder that already watches the keyword.
+
+#### Token effect
+
+The declaration rides every request of a Session in a profile that mounts the Schedule service. A `check` adds the notice, the count it scanned and one line per new entry; the baseline itself never enters the conversation, so an unchanged lane costs one line. The reminder's follow-up costs one user turn each time it fires.
+
+#### KV Cache effect
+
+Same as the other tools: the declaration never moves, and each call appends its result.
 
 ### Read tool
 
@@ -171,6 +185,7 @@ Same as the other tools: the declaration never moves, and each call appends its 
 - An export files the discussion only while that item's Discussion segment is open in the panel; a discussion resumed later is not read back for the note.
 - The comments endpoint answers at most ten root comments per page in Zhihu's own hotness order, so a call answers one slice of a thread and a larger limit reads further instead of paging back; a challenge page surfaces as `ZHIHU_BLOCKED` rather than as an empty thread.
 - Zhihu throttles: the provider spaces calls by `http.minIntervalMs` and the tools report the failure rather than retrying, so a burst of calls can surface an error the reader has to repeat; a throttled response that names a `Retry-After` wait keeps it, and the failure message says how many seconds to wait.
+- `zhihu_watch` keeps a keyword's baseline in the Host process, so a restart re-arms every check as a fresh baseline and the first check after a restart reports nothing new. The reminder belongs to the Session that created it, and the Schedule service refuses intervals shorter than one minute.
 - An installed tarball is recorded by URL, so a profile upgrades only when it is handed the new release's URL; the plugin-market entry pins one version at a time.
 - The Host half loads at startup, so enabling, disabling or updating the package needs a restart.
 

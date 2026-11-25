@@ -36,6 +36,8 @@ export interface ZhihuFeedValue {
     readonly items: readonly ZhihuFeedItemValue[];
     /** True when the feed reached the requested limit, so more entries may exist. */
     readonly truncated: boolean;
+    /** Token that continues this feed; absent when no page follows. */
+    readonly cursor?: string;
 }
 /** One entry as the replayable presentation meta carries it. */
 export type ZhihuFeedEntryMeta = {
@@ -52,6 +54,7 @@ export type ZhihuFeedMeta = {
     count: number;
     items: ZhihuFeedEntryMeta[];
     truncated: boolean;
+    cursor?: string;
 };
 /**
  * Project one seam entry into the canonical value, bounding the excerpt so the

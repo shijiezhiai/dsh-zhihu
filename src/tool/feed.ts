@@ -6,7 +6,7 @@
  */
 
 import type { Context } from '@deepseek-ai/cordis'
-import type { ZhihuFeedItem, ZhihuFeedKind } from '../service/index.ts'
+import type { ZhihuFeedItem, ZhihuFeedKind, ZhihuFeedPage } from '../service/index.ts'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { GenericCallView, GenericResultView, ToolResult } from '@deepseek-ai/dsh-tools'
 import type { JsonValue } from '@deepseek-ai/dsh-util-values'
@@ -42,6 +42,8 @@ export interface ZhihuFeedValue {
   readonly items: readonly ZhihuFeedItemValue[]
   /** True when the feed reached the requested limit, so more entries may exist. */
   readonly truncated: boolean
+  /** Token that continues this feed; absent when no page follows. */
+  readonly cursor?: string
 }
 
 /** One entry as the replayable presentation meta carries it. */
@@ -60,6 +62,7 @@ export type ZhihuFeedMeta = {
   count: number
   items: ZhihuFeedEntryMeta[]
   truncated: boolean
+  cursor?: string
 }
 
 /** Card and render titles per feed kind. */
@@ -70,7 +73,7 @@ const FEED_LABELS: Readonly<Record<ZhihuFeedKind, string>> = {
   topic: 'Zhihu topic feed',
 }
 
-const FEED_DESCRIPTION = 'Read Zhihu\'s own feeds. kind \'hot\' returns the site-wide hot list; kind \'recommend\' returns the recommendation stream of the signed-in account; kind \'follow\' returns what the accounts it follows published; kind \'topic\' returns what a search for the topic keyword finds, in relevance order, and continues from its own cursor. Zhihu content needs the account\'s login state and web_fetch cannot retrieve it: Zhihu answers 403 or a risk-control challenge page. Ids are decimal strings of varying length; a long one loses precision if treated as a number, so pass it back exactly as returned. Each id can go to zhihu_read; an article row also needs its title, copied exactly as its line shows it. Failures name their cause: ZHIHU_LOGIN_REQUIRED means no Zhihu cookie is stored, ZHIHU_RATE_LIMITED means the calls are too frequent, and ZHIHU_BLOCKED means a verification challenge is pending. Report the cause instead of repeating the same call.'
+const FEED_DESCRIPTION = 'Read Zhihu\'s own feeds. kind \'hot\' returns the site-wide hot list; kind \'recommend\' returns the recommendation stream of the signed-in account; kind \'follow\' returns what the accounts it follows published; kind \'topic\' returns what a search for the topic keyword finds, in relevance order. An answer that a later page follows carries a cursor: pass it back to read that page. Zhihu content needs the account\'s login state and web_fetch cannot retrieve it: Zhihu answers 403 or a risk-control challenge page. Ids are decimal strings of varying length; a long one loses precision if treated as a number, so pass it back exactly as returned. Each id can go to zhihu_read; an article row also needs its title, copied exactly as its line shows it. Failures name their cause: ZHIHU_LOGIN_REQUIRED means no Zhihu cookie is stored, ZHIHU_RATE_LIMITED means the calls are too frequent, and ZHIHU_BLOCKED means a verification challenge is pending. Report the cause instead of repeating the same call.'
 
 /**
  * Project one seam entry into the canonical value, bounding the excerpt so the
@@ -109,6 +112,7 @@ export function feedMeta(value: ZhihuFeedValue): JsonValue {
       ...(item.heatLabel === undefined ? {} : { heatLabel: item.heatLabel }),
     })),
     truncated: value.truncated,
+    ...(value.cursor === undefined ? {} : { cursor: value.cursor }),
   }
 }
 
@@ -125,6 +129,7 @@ export function formatFeedOutput(value: ZhihuFeedValue): string {
     : value.items.map(item => formatEntryLine(item)).join('\n')
   const notes = [
     ...(value.truncated ? [`Showing the first ${value.items.length} entries; more are available.`] : []),
+    ...(value.cursor === undefined ? [] : [`Pass cursor "${value.cursor}" to read the next slice of this feed.`]),
     'Pass a question or answer id to zhihu_read to read it in full. An article row reads the same way when the call also carries that row\'s title, copied exactly as its line shows it.',
   ]
   return [ZHIHU_UNTRUSTED_CONTENT_NOTICE, `${label} (limit ${value.limit}):\n\n${body}`, notes.join('\n')].join('\n\n')
@@ -193,6 +198,10 @@ export function applyZhihuFeedTool(ctx: Context, limits: ZhihuToolLimits): void 
         type: 'number',
         description: `How many entries to return, at most ${maxItems}. Omitted returns up to ${maxItems}.`,
       },
+      cursor: {
+        type: 'string',
+        description: 'Continuation token an earlier answer returned as cursor. Omitted reads the first page; a feed that does not page ignores it.',
+      },
     },
     output: {
       schema: {
@@ -218,6 +227,7 @@ export function applyZhihuFeedTool(ctx: Context, limits: ZhihuToolLimits): void 
             },
           },
           truncated: { type: 'boolean', required: true },
+          cursor: { type: 'string' },
         },
       },
       render: (_args, value) => [{ type: 'text', text: formatFeedOutput(value) }],
@@ -232,21 +242,24 @@ export function applyZhihuFeedTool(ctx: Context, limits: ZhihuToolLimits): void 
       if (args.kind === 'topic' && topic.length === 0) {
         throw new Error('topic must not be empty for a topic feed')
       }
-      let items: readonly ZhihuFeedItem[]
+      const cursor = readString(args, 'cursor')?.trim() ?? ''
+      let page: ZhihuFeedPage
       try {
-        items = (await ctx.zhihu.feed({
+        page = await ctx.zhihu.feed({
           kind: args.kind,
           limit,
           ...(args.kind === 'topic' ? { topic } : {}),
-        })).items
+          ...(cursor.length === 0 ? {} : { cursor }),
+        })
       } catch (error) {
         throw new Error(describeZhihuFailure(error), { cause: error })
       }
       return {
         kind: args.kind,
         limit,
-        items: items.map(item => projectFeedItem(item, excerptMaxChars)),
-        truncated: items.length >= limit,
+        items: page.items.map(item => projectFeedItem(item, excerptMaxChars)),
+        truncated: page.items.length >= limit,
+        ...(page.cursor === undefined ? {} : { cursor: page.cursor }),
       }
     },
     presentCall: presentFeedCall,
