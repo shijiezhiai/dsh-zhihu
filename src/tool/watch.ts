@@ -6,7 +6,7 @@
  */
 
 import type { Context } from '@deepseek-ai/cordis'
-import type { ScheduleService } from '@deepseek-ai/dsh-schedule'
+import type { ScheduleCatalogEntry, ScheduleService } from '@deepseek-ai/dsh-schedule'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { GenericCallView, GenericResultView, ToolResult } from '@deepseek-ai/dsh-tools'
 import type { JsonValue } from '@deepseek-ai/dsh-util-values'
@@ -191,7 +191,7 @@ export function presentWatchResult(args: unknown, result: ToolResult): GenericRe
 }
 
 /** The Session id the Host Schedule service binds a reminder to. */
-type WatchSessionId = Parameters<ScheduleService['create']>[0]
+type WatchSessionId = NonNullable<Parameters<ScheduleService['create']>[1]>
 
 /**
  * Resolve the interval one `start` requests.
@@ -235,22 +235,41 @@ export function applyZhihuWatchTool(ctx: Context, limits: ZhihuToolLimits): void
   }
 
   /**
+   * Find the active reminders this keyword already carries for one Session.
+   * @param title - reminder title of the keyword.
+   * @param sessionId - Session the reminders deliver into.
+   * @returns the active tasks with that title and destination.
+   */
+  const reminders = async (title: string, sessionId: WatchSessionId): Promise<readonly ScheduleCatalogEntry[]> => {
+    return (await schedule.catalog()).filter(entry => entry.title === title
+      && entry.status === 'active'
+      && entry.target.kind === 'session'
+      && entry.target.sessionId === sessionId)
+  }
+
+  /**
    * Create the reminder one keyword did not have yet.
    * @param sessionId - Session the reminder delivers into.
    * @param keyword - the watched keyword.
    * @param everySeconds - interval between checks.
+   * @param signal - cancellation of the outer call.
    * @returns the reminder this call created.
    */
   const startWatch = async (
-    sessionId: WatchSessionId, keyword: string, everySeconds: number,
+    sessionId: WatchSessionId, keyword: string, everySeconds: number, signal: AbortSignal,
   ): Promise<ZhihuWatchScheduleValue> => {
     const title = watchTitle(keyword)
-    const existing = (await schedule.list({ sessionId })).find(record => record.title === title)
+    const existing = (await reminders(title, sessionId))[0]
     if (existing !== undefined) {
       throw new Error(`A reminder already watches "${keyword}" (id ${existing.id}); stop it before starting another.`)
     }
-    const record = await schedule.create(sessionId, { title, prompt: watchPrompt(keyword), every_seconds: everySeconds })
-    return { id: String(record.id), title: record.title, everySeconds }
+    const entry = await schedule.create({
+      title,
+      prompt: watchPrompt(keyword),
+      timing: { kind: 'every', every_seconds: everySeconds },
+      target: { kind: 'session', sessionId },
+    }, sessionId, signal)
+    return { id: String(entry.id), title: entry.title, everySeconds }
   }
 
   /**
@@ -258,16 +277,17 @@ export function applyZhihuWatchTool(ctx: Context, limits: ZhihuToolLimits): void
    * @param sessionId - Session the reminders deliver into.
    * @param keyword - the watched keyword.
    * @param key - baseline key to drop with the reminders.
+   * @param signal - cancellation of the outer call.
    * @returns the stop result.
    */
-  const stopWatch = async (sessionId: WatchSessionId, keyword: string, key: string): Promise<ZhihuWatchValue> => {
+  const stopWatch = async (
+    sessionId: WatchSessionId, keyword: string, key: string, signal: AbortSignal,
+  ): Promise<ZhihuWatchValue> => {
     baselines.delete(key)
-    const title = watchTitle(keyword)
-    const owned = (await schedule.list({ sessionId })).filter(record => record.title === title)
     let removed = 0
-    for (const record of owned) {
-      const result = await schedule.delete({ sessionId, id: record.id })
-      if (result.deleted) removed += 1
+    for (const entry of await reminders(watchTitle(keyword), sessionId)) {
+      const result = await schedule.edit({ id: entry.id, action: 'delete' }, sessionId, signal)
+      if ('deleted' in result) removed += 1
     }
     return { action: 'stop', keyword, scanned: 0, items: [], baselineOnly: false, removed }
   }
@@ -341,7 +361,7 @@ export function applyZhihuWatchTool(ctx: Context, limits: ZhihuToolLimits): void
       const agent = exec.agent
       if (agent === undefined) throw new Error('zhihu_watch needs the calling agent, so its reminder has a Session to deliver into')
       const key = `${String(agent.session.id)}\u0000${keyword}`
-      if (action === 'stop') return await stopWatch(agent.session.id, keyword, key)
+      if (action === 'stop') return await stopWatch(agent.session.id, keyword, key, exec.signal)
       const entries = await readLane(keyword, maxItems, exec.signal)
       const previous = baselines.get(key)
       baselines.set(key, entries.map(item => item.id).slice(0, BASELINE_IDS))
@@ -354,7 +374,7 @@ export function applyZhihuWatchTool(ctx: Context, limits: ZhihuToolLimits): void
         baselineOnly: previous === undefined,
       }
       if (action === 'check') return read
-      return { ...read, schedule: await startWatch(agent.session.id, keyword, resolveMinutes(args.everyMinutes)) }
+      return { ...read, schedule: await startWatch(agent.session.id, keyword, resolveMinutes(args.everyMinutes), exec.signal) }
     },
     presentCall: presentWatchCall,
     presentResult: presentWatchResult,

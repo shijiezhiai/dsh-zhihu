@@ -2,6 +2,12 @@
 
 Every tag publishes the prebuilt tarball the plugin-market entry installs, at `https://github.com/shijiezhiai/dsh-zhihu/releases/download/v<version>/dsh-zhihu.tgz`; the asset name stays `dsh-zhihu.tgz`, so a version is identified by its URL.
 
+## 1.9.1
+
+### Fixed
+
+- `zhihu_watch` now speaks the Host Schedule API that ships with the desktop application: `start` sends a typed creation request carrying its timing and its target Session plus the acting Session, both lookups read the Host catalog instead of a Session-scoped list, and `stop` deletes through an edit request. 1.9.0 was written against an earlier Schedule revision, so `start` and `stop` failed at runtime in a current Host while `check` worked.
+
 ## 1.9.0
 
 ### Added
