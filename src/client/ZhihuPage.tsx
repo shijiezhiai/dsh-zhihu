@@ -572,6 +572,12 @@ export function ZhihuPage(
     [face],
   )
 
+  /** Read one slice of a comment's replies, requested only when the reader asks for them. */
+  const loadReplies = useCallback(
+    (commentId: string, limit: number) => face.replies(commentId, limit),
+    [face],
+  )
+
   /** Drop the panel's reference; the discussion Session and its transcript stay. */
   const release = useCallback(() => {
     held.current?.release()
@@ -928,6 +934,7 @@ export function ZhihuPage(
                 t={t}
                 onRetry={() => { read(opened.row) }}
                 onComments={loadComments}
+                onReplies={loadReplies}
               />
             </div>
           )

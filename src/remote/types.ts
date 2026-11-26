@@ -22,9 +22,10 @@ declare module '@deepseek-ai/dsh-typert-protocol' {
 
 /**
  * The request a failure names: the feed kind a listing asked for, the content kind a read asked
- * for, or `search`. One member keeps every failure code's details readable by the same renderer.
+ * for, `search`, or `comments` when the call read a reply thread. One member keeps every failure
+ * code's details readable by the same renderer.
  */
-export type ZhihuFailureTarget = ZhihuFeedQuery['kind'] | ZhihuReadQuery['kind'] | 'search'
+export type ZhihuFailureTarget = ZhihuFeedQuery['kind'] | ZhihuReadQuery['kind'] | 'search' | 'comments'
 
 /** Every failure code this Remote raises from a classified seam error. */
 export type ZhihuRemoteFailureCode =
@@ -133,6 +134,14 @@ export interface ZhihuCommentsResult {
   readonly items: readonly ZhihuCommentRow[]
   /** Number of root comments on the content; absent when the payload carried none. */
   readonly total?: number
+}
+
+/** One replies request: the root comment whose answers are wanted, and how many. */
+export interface ZhihuRepliesQuery {
+  /** Provider comment id, carried as a string because some ids exceed 2^53. */
+  readonly commentId: string
+  /** Replies requested; the Host applies its own default and cap. */
+  readonly limit?: number
 }
 
 /** One read request; a question read returns its title plus its top answer text. */

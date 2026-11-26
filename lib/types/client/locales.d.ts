@@ -32,6 +32,8 @@ export declare const en: {
     'comments.more': string;
     'comments.replies': string;
     'comments.repliesOne': string;
+    'comments.showReplies': string;
+    'comments.showRepliesOne': string;
     'markdown.copy': string;
     'markdown.copied': string;
     'markdown.code': string;

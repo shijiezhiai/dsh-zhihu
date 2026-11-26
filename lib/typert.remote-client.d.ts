@@ -4,7 +4,7 @@ import type {
   TypertRemoteInfo,
   TypertRemoteMethod,
 } from '@deepseek-ai/dsh-typert-protocol'
-import type { ZhihuClientSettings, ZhihuCommentsQuery, ZhihuCommentsResult, ZhihuExportQuery, ZhihuExportResult, ZhihuFeedQuery, ZhihuFeedResult, ZhihuReadItem, ZhihuReadQuery, ZhihuSearchQuery, ZhihuSearchResult } from '@mayangyang/dsh-zhihu/types'
+import type { ZhihuClientSettings, ZhihuCommentsQuery, ZhihuCommentsResult, ZhihuExportQuery, ZhihuExportResult, ZhihuFeedQuery, ZhihuFeedResult, ZhihuReadItem, ZhihuReadQuery, ZhihuRepliesQuery, ZhihuSearchQuery, ZhihuSearchResult } from '@mayangyang/dsh-zhihu/types'
 
 declare module '@deepseek-ai/dsh-typert-protocol' {
   interface TypertRemoteNamespace$7a68696875 {
@@ -12,6 +12,7 @@ declare module '@deepseek-ai/dsh-typert-protocol' {
     export: (request: ZhihuExportQuery) => Promise<RemoteResult<ZhihuExportResult>>
     feed: (request: ZhihuFeedQuery) => Promise<RemoteResult<ZhihuFeedResult>>
     read: (request: ZhihuReadQuery) => Promise<RemoteResult<ZhihuReadItem>>
+    replies: (request: ZhihuRepliesQuery) => Promise<RemoteResult<ZhihuCommentsResult>>
     search: (request: ZhihuSearchQuery) => Promise<RemoteResult<ZhihuSearchResult>>
     settings: () => Promise<RemoteResult<ZhihuClientSettings>>
   }
@@ -20,6 +21,7 @@ declare module '@deepseek-ai/dsh-typert-protocol' {
     'zhihu/export': (request: ZhihuExportQuery) => Promise<RemoteResult<ZhihuExportResult>>
     'zhihu/feed': (request: ZhihuFeedQuery) => Promise<RemoteResult<ZhihuFeedResult>>
     'zhihu/read': (request: ZhihuReadQuery) => Promise<RemoteResult<ZhihuReadItem>>
+    'zhihu/replies': (request: ZhihuRepliesQuery) => Promise<RemoteResult<ZhihuCommentsResult>>
     'zhihu/search': (request: ZhihuSearchQuery) => Promise<RemoteResult<ZhihuSearchResult>>
     'zhihu/settings': () => Promise<RemoteResult<ZhihuClientSettings>>
   }
@@ -33,6 +35,7 @@ export declare const TYPERT_REMOTE: TypertRemoteInfo<{
   readonly 'zhihu/export': TypertRemoteMethod<{ readonly 'request': ZhihuExportQuery }, ZhihuExportResult>
   readonly 'zhihu/feed': TypertRemoteMethod<{ readonly 'request': ZhihuFeedQuery }, ZhihuFeedResult>
   readonly 'zhihu/read': TypertRemoteMethod<{ readonly 'request': ZhihuReadQuery }, ZhihuReadItem>
+  readonly 'zhihu/replies': TypertRemoteMethod<{ readonly 'request': ZhihuRepliesQuery }, ZhihuCommentsResult>
   readonly 'zhihu/search': TypertRemoteMethod<{ readonly 'request': ZhihuSearchQuery }, ZhihuSearchResult>
   readonly 'zhihu/settings': TypertRemoteMethod<{  }, ZhihuClientSettings>
 }>

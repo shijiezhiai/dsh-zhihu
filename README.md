@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-One installable package puts Zhihu inside the harness: four model tools read the hot and recommendation feeds, one answer or column post, search results and an item's root comments, a fifth follows one keyword on a schedule where the profile mounts the Host Schedule service, and the same package draws a sidebar panel where a reader opens those rows, reads the item with its root comments, quotes a passage, discusses the item in a real Session and writes it to Obsidian. Nothing model-facing appears until a profile enables the plugin.
+One installable package puts Zhihu inside the harness: four model tools read the hot and recommendation feeds, one answer or column post, search results and an item's root comments, a fifth follows one keyword on a schedule where the profile mounts the Host Schedule service, and the same package draws a sidebar panel where a reader opens those rows, reads the item with its root comments and the replies under any of them, quotes a passage, discusses the item in a real Session and writes it to Obsidian. Nothing model-facing appears until a profile enables the plugin.
 
 ## Table of Contents
 
@@ -80,7 +80,7 @@ What the reader gets: lanes for hot, recommendation, follow, a watched keyword a
 <details>
 <summary>Implementation internals — click to expand</summary>
 
-`src/index.ts` is the only Host entry: its `apply` mounts the `ctx.zhihu` seam, the credentialed HTTP provider, the model tools and the authenticated Remote, while `package.json` declares the browser half through `dsh.client`, so one install covers both planes. The seam answers feeds, reads, search and comments; the provider owns the cookie, the spacing between calls, the cache that answers a repeated request from memory for `http.cacheTtlMs`, the single resend it performs after a wait up to `http.retryCeilingMs`, and the typed failures, which carry the wait a throttling response named; the tools render what the model reads; and the Remote serves bounded rows to the panel, which never calls Zhihu itself.
+`src/index.ts` is the only Host entry: its `apply` mounts the `ctx.zhihu` seam, the credentialed HTTP provider, the model tools and the authenticated Remote, while `package.json` declares the browser half through `dsh.client`, so one install covers both planes. The seam answers feeds, reads, search, comments and the replies under a comment; the provider owns the cookie, the spacing between calls, the cache that answers a repeated request from memory for `http.cacheTtlMs`, the single resend it performs after a wait up to `http.retryCeilingMs`, and the typed failures, which carry the wait a throttling response named; the tools render what the model reads; and the Remote serves bounded rows to the panel, which never calls Zhihu itself.
 
 | Source | Contents |
 |---|---|
@@ -187,7 +187,7 @@ Same as the other tools: the declaration never moves, and each call appends its 
 - An export files the discussion only while that item's Discussion segment is open in the panel; a discussion resumed later is not read back for the note.
 - The comments endpoint answers at most ten root comments per page in Zhihu's own hotness order, so a call answers one slice of a thread and a larger limit reads further instead of paging back; a challenge page surfaces as `ZHIHU_BLOCKED` rather than as an empty thread. The panel's thread follows the same rule: it reads ten comments when a row opens and each further read asks for ten more, so a thread larger than `http.commentPages` pages stops growing and offers no more.
 - A row shows the upvote count only where the feed reports one: the hot list's question targets carry none, so those rows stay bare, and the panel never spends a request to fill a count in.
-- The panel lists root comments only; a comment's replies stay counted rather than expanded, and the list carries no reply thread.
+- The panel shows one level of replies: a comment's replies arrive behind a button that asks for ten of them, and each further read asks for ten more. A reply to a reply sits in that same list, so nothing opens a third level.
 - Zhihu throttles: the provider spaces calls by `http.minIntervalMs`, and a throttled response that names a `Retry-After` wait no longer than `http.retryCeilingMs` is absorbed once — the request waits that long, then is sent one more time. A longer or unnamed wait is reported instead, so a burst of calls can still surface an error the reader has to repeat; the failure message says how many seconds to wait, and cancelling the call ends the wait immediately.
 - `zhihu_watch` keeps a keyword's baseline in the Host process, so a restart re-arms every check as a fresh baseline and the first check after a restart reports nothing new. The reminder belongs to the Session that created it, and the Schedule service refuses intervals shorter than one minute.
 - An installed tarball is recorded by URL, so a profile upgrades only when it is handed the new release's URL; the plugin-market entry pins one version at a time.

@@ -225,6 +225,20 @@ export interface ZhihuCommentsPage {
 }
 
 /**
+ * One replies request. Zhihu keeps comment threads two levels deep: every answer to a root comment,
+ * including answers to its answers, hangs under that root comment.
+ */
+export interface ZhihuRepliesRequest {
+  /** Lossless decimal id of the root comment whose replies are wanted. */
+  readonly commentId: string
+  /**
+   * Upper bound on returned replies; the seam enforces it. Omitted = provider default, and the
+   * same one-slice rule as {@link ZhihuCommentsRequest.limit} applies.
+   */
+  readonly limit?: number
+}
+
+/**
  * One backend that can serve `ctx.zhihu`. Providers register themselves with the service and
  * answer `available()` per call, so selection reflects credentials that changed at runtime.
  */
@@ -261,4 +275,12 @@ export interface ZhihuProvider {
    * @returns one slice of the thread; the seam caps its comments to `request.limit`.
    */
   comments(request: ZhihuCommentsRequest, signal?: AbortSignal): Promise<ZhihuCommentsPage>
+
+  /**
+   * Read the replies under one root comment.
+   * @param request - the root comment id and an optional reply limit.
+   * @param signal - cancellation of the call; a provider must stop its own work when it aborts.
+   * @returns one slice of the replies; the seam caps them to `request.limit`.
+   */
+  replies(request: ZhihuRepliesRequest, signal?: AbortSignal): Promise<ZhihuCommentsPage>
 }

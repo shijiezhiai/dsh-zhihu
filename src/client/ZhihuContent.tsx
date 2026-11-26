@@ -223,12 +223,15 @@ interface ZhihuThread {
  * @param props.row - the row whose thread this is.
  * @param props.t - copy of the Zhihu namespace.
  * @param props.load - reads one slice of the thread.
+ * @param props.loadReplies - reads one slice of the replies under one comment.
  * @returns the comment section.
  */
-export function ZhihuComments({ row, t, load }: {
+export function ZhihuComments({ row, t, load, loadReplies }: {
   readonly row: ZhihuFeedRow
   readonly t: ZhihuTranslate
   readonly load: (row: ZhihuFeedRow, limit: number) => Promise<ZhihuPageOutcome<ZhihuCommentsResult>>
+  /** Reads one slice of a comment's replies; omitted where the seat has no reply lane. */
+  readonly loadReplies?: (commentId: string, limit: number) => Promise<ZhihuPageOutcome<ZhihuCommentsResult>>
 }): ReactNode {
   const [thread, setThread] = useState<ZhihuThread>({ limit: COMMENT_STEP, status: 'loading', items: [], exhausted: false })
   /** Counts reads of the same slice, so a retry runs again with the limit unchanged. */
@@ -293,6 +296,9 @@ export function ZhihuComments({ row, t, load }: {
                     : t('comments.replies', { count: item.replies })}</>
                 )}
               </span>
+              {item.replies > 0 && loadReplies !== undefined && (
+                <ZhihuReplies comment={item} t={t} load={loadReplies} />
+              )}
             </li>
           ))}
         </ol>
@@ -310,6 +316,130 @@ export function ZhihuComments({ row, t, load }: {
   )
 }
 
+/** Replies one request asks for, and the step each further request adds. */
+const REPLY_STEP = 10
+
+/** One comment's replies: whether they are open, what has been read, and whether more follows. */
+interface ZhihuReplyThread {
+  /** Whether the reader asked to see these replies; nothing is requested before that. */
+  readonly open: boolean
+  /** Reply count this read asked for. */
+  readonly limit: number
+  /** Whether the read is in flight, answered, or refused. */
+  readonly status: 'loading' | 'ready' | 'failed'
+  /** Replies read so far, kept across a further read so the list never blanks. */
+  readonly items: readonly ZhihuCommentRow[]
+  /** Replies under the comment; absent when the payload carried none. */
+  readonly total?: number
+  /** True when another read cannot add a reply. */
+  readonly exhausted: boolean
+  /** The refusal behind a failed read. */
+  readonly failure?: RemoteFailure
+}
+
+/**
+ * Render the replies under one root comment, requested only once the reader asks for them.
+ *
+ * Zhihu keeps one level of replies: a reply to a reply arrives in the same list, so nothing here
+ * opens a further thread.
+ * @param props.comment - the root comment whose replies these are.
+ * @param props.t - copy of the Zhihu namespace.
+ * @param props.load - reads one slice of the replies.
+ * @returns the reply list, or the button that reveals it.
+ */
+export function ZhihuReplies({ comment, t, load }: {
+  readonly comment: ZhihuCommentRow
+  readonly t: ZhihuTranslate
+  readonly load: (commentId: string, limit: number) => Promise<ZhihuPageOutcome<ZhihuCommentsResult>>
+}): ReactNode {
+  const [thread, setThread] = useState<ZhihuReplyThread>({
+    open: false, limit: REPLY_STEP, status: 'loading', items: [], exhausted: false,
+  })
+  /** Counts reads of the same slice, so a retry runs again with the limit unchanged. */
+  const [attempt, setAttempt] = useState(0)
+  const requested = thread.limit
+  const open = thread.open
+  useEffect(() => {
+    if (!open) return
+    let live = true
+    setThread(previous => ({ ...previous, status: 'loading' }))
+    void load(comment.id, requested).then((result) => {
+      if (!live) return
+      setThread((previous) => {
+        if (!result.ok) return { ...previous, status: 'failed', failure: result.failure }
+        const { items } = result.value
+        const total = result.value.total
+        const grew = items.length > previous.items.length
+        return {
+          ...previous,
+          status: 'ready',
+          items,
+          ...(total === undefined ? {} : { total }),
+          exhausted: total !== undefined ? items.length >= total : items.length < requested || !grew,
+        }
+      })
+    })
+    return () => { live = false }
+  }, [comment.id, load, open, requested, attempt])
+
+  if (!open) {
+    return (
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => { setThread(previous => ({ ...previous, open: true })) }}
+      >
+        {comment.replies === 1
+          ? t('comments.showRepliesOne')
+          : t('comments.showReplies', { count: comment.replies })}
+      </Button>
+    )
+  }
+  return (
+    <div className={css.replies}>
+      {thread.status === 'loading' && thread.items.length === 0 && <p className={css.state}>{t('card.loading')}</p>}
+      {thread.status === 'failed' && thread.failure !== undefined && (
+        <div className={css.failure}>
+          <p className={css.state}>{zhihuPanelFailureLine(t, thread.failure)}</p>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setThread(previous => ({ ...previous, status: 'loading' }))
+              setAttempt(count => count + 1)
+            }}
+          >
+            {t('panel.retry')}
+          </Button>
+        </div>
+      )}
+      {thread.status === 'ready' && thread.items.length === 0 && <p className={css.state}>{t('comments.empty')}</p>}
+      {thread.items.length > 0 && (
+        <ul className={css.replyList}>
+          {thread.items.map(item => (
+            <li key={item.id} className={css.reply}>
+              <p className={css.commentText}>{item.text}</p>
+              <span className={css.meta}>
+                {item.author === '' ? t('panel.anonymous') : item.author}
+                {' · '}{item.likes === 1 ? t('read.upvotesOne') : t('read.upvotes', { count: item.likes })}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {thread.status === 'ready' && !thread.exhausted && (
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => { setThread(previous => ({ ...previous, limit: previous.limit + REPLY_STEP })) }}
+        >
+          {t('comments.more')}
+        </Button>
+      )}
+    </div>
+  )
+}
+
 /**
  * Render one opened row: its title, body, author line, and the refusal path.
  * @param props.state - the open row, its content, or its refusal.
@@ -317,14 +447,16 @@ export function ZhihuComments({ row, t, load }: {
  * @param props.onRetry - called when the reader retries a refused read.
  * @param props.onAsk - drafts a conversation about this row; omitted where the seat has no Workspace.
  * @param props.onComments - reads the row's thread; omitted where the seat has no comment lane.
+ * @param props.onReplies - reads a comment's replies; omitted where the seat has no reply lane.
  * @returns the opened row.
  */
-export function ZhihuOpenedContent<R extends ZhihuFeedRow>({ state, t, onRetry, onAsk, onComments }: {
+export function ZhihuOpenedContent<R extends ZhihuFeedRow>({ state, t, onRetry, onAsk, onComments, onReplies }: {
   readonly state: ZhihuOpenedRow<R>
   readonly t: ZhihuTranslate
   readonly onRetry: () => void
   readonly onAsk?: () => void
   readonly onComments?: (row: ZhihuFeedRow, limit: number) => Promise<ZhihuPageOutcome<ZhihuCommentsResult>>
+  readonly onReplies?: (commentId: string, limit: number) => Promise<ZhihuPageOutcome<ZhihuCommentsResult>>
 }): ReactNode {
   return (
     <div className={css.content}>
@@ -368,7 +500,14 @@ export function ZhihuOpenedContent<R extends ZhihuFeedRow>({ state, t, onRetry, 
       <a className={css.original} href={state.row.url} target="_blank" rel="noreferrer">
         {t('panel.openOriginal')}
       </a>
-      {onComments !== undefined && <ZhihuComments row={state.row} t={t} load={onComments} />}
+      {onComments !== undefined && (
+        <ZhihuComments
+          row={state.row}
+          t={t}
+          load={onComments}
+          {...(onReplies === undefined ? {} : { loadReplies: onReplies })}
+        />
+      )}
     </div>
   )
 }

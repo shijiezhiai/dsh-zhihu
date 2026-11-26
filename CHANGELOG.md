@@ -2,6 +2,12 @@
 
 Every tag publishes the prebuilt tarball the plugin-market entry installs, at `https://github.com/shijiezhiai/dsh-zhihu/releases/download/v<version>/dsh-zhihu.tgz`; the asset name stays `dsh-zhihu.tgz`, so a version is identified by its URL.
 
+## 1.12.0
+
+### Added
+
+- A comment's replies read on demand: the panel shows how many replies a root comment has and reads ten of them only when the reader asks, with "Read more" widening that slice the same way the thread above it does. Zhihu keeps one level of replies, so a reply to a reply arrives in the same list and no third level opens. `remote.replies` serves one slice per call and refuses an empty comment id.
+
 ## 1.11.0
 
 ### Added

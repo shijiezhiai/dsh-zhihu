@@ -47,6 +47,13 @@ export interface ZhihuPanelInjected {
      */
     comments(row: ZhihuFeedRow, limit?: number): Promise<ZhihuPageOutcome<ZhihuCommentsResult>>;
     /**
+     * Read one slice of the replies under a root comment.
+     * @param commentId - the root comment whose replies to read.
+     * @param limit - replies requested; omitted reads the default slice.
+     * @returns the replies and the thread's size, or the refusal.
+     */
+    replies(commentId: string, limit?: number): Promise<ZhihuPageOutcome<ZhihuCommentsResult>>;
+    /**
      * Draft a conversation about the open row into a Workspace session.
      * @param row - the row the reader has open.
      * @param item - its body when the read produced one; the draft then carries the text.

@@ -2,7 +2,7 @@
 import { Context } from '@deepseek-ai/cordis';
 import z from '@deepseek-ai/schemastery';
 import { TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol';
-import type { ZhihuClientSettings, ZhihuCommentsQuery, ZhihuCommentsResult, ZhihuExportQuery, ZhihuExportResult, ZhihuFeedQuery, ZhihuFeedResult, ZhihuReadItem, ZhihuReadQuery, ZhihuSearchQuery, ZhihuSearchResult } from './types.ts';
+import type { ZhihuClientSettings, ZhihuCommentsQuery, ZhihuCommentsResult, ZhihuExportQuery, ZhihuExportResult, ZhihuFeedQuery, ZhihuFeedResult, ZhihuReadItem, ZhihuReadQuery, ZhihuRepliesQuery, ZhihuSearchQuery, ZhihuSearchResult } from './types.ts';
 export type * from './types.ts';
 declare module '@deepseek-ai/cordis' {
     interface Context {
@@ -61,6 +61,12 @@ export default class ZhihuController extends TypertRemoteService {
      */
     comments(request: ZhihuCommentsQuery): Promise<ZhihuCommentsResult>;
     /**
+     * Read the replies under one root comment.
+     * @param request - the root comment id and an optional reply limit.
+     * @returns one slice of the replies and the thread size when the payload names it.
+     */
+    replies(request: ZhihuRepliesQuery): Promise<ZhihuCommentsResult>;
+    /**
      * File one capture into the Obsidian vault, adding a marked passage to the note it came from.
      * @param request - the opened row plus the body the reader already holds.
      * @returns the vault path that was written.
@@ -95,6 +101,12 @@ export default class ZhihuController extends TypertRemoteService {
      * @param request - request as the Client sent it.
      * @returns the request `ctx.zhihu` must serve.
      */
+    /**
+     * Validate one replies request and apply the deployment's limit.
+     * @param request - the wire request.
+     * @returns the seam request.
+     */
+    private resolveReplies;
     private resolveComments;
     /**
      * Validate one read request against this deployment's limits.

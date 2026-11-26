@@ -8,8 +8,8 @@
 import { Context, Service, type Volatile } from '@deepseek-ai/cordis';
 import z from '@deepseek-ai/schemastery';
 import { HarnessError } from '@deepseek-ai/dsh-llm';
-import type { ZhihuCommentsPage, ZhihuCommentsRequest, ZhihuErrorCode, ZhihuFeedPage, ZhihuFeedRequest, ZhihuProvider, ZhihuReadRequest, ZhihuReadResult, ZhihuSearchPage, ZhihuSearchRequest } from './types.ts';
-export type { ZhihuComment, ZhihuCommentsPage, ZhihuCommentsRequest, ZhihuContentKind, ZhihuErrorCode, ZhihuFeedItem, ZhihuFeedKind, ZhihuFeedPage, ZhihuFeedRequest, ZhihuProvider, ZhihuReadKind, ZhihuReadRequest, ZhihuReadResult, ZhihuSearchHit, ZhihuSearchPage, ZhihuSearchRequest, ZhihuSearchSort, ZhihuSearchTimeWindow, } from './types.ts';
+import type { ZhihuCommentsPage, ZhihuCommentsRequest, ZhihuErrorCode, ZhihuFeedPage, ZhihuFeedRequest, ZhihuProvider, ZhihuReadRequest, ZhihuReadResult, ZhihuRepliesRequest, ZhihuSearchPage, ZhihuSearchRequest } from './types.ts';
+export type { ZhihuComment, ZhihuCommentsPage, ZhihuCommentsRequest, ZhihuContentKind, ZhihuErrorCode, ZhihuFeedItem, ZhihuFeedKind, ZhihuFeedPage, ZhihuFeedRequest, ZhihuProvider, ZhihuReadKind, ZhihuReadRequest, ZhihuReadResult, ZhihuRepliesRequest, ZhihuSearchHit, ZhihuSearchPage, ZhihuSearchRequest, ZhihuSearchSort, ZhihuSearchTimeWindow, } from './types.ts';
 /** Construction inputs for {@link ZhihuError}. */
 export interface ZhihuErrorOptions extends ErrorOptions {
     /** Whole seconds Zhihu asked the caller to wait, from its `Retry-After` header. */
@@ -108,6 +108,13 @@ export declare class ZhihuService extends Service {
      * @returns the comments read, truncated when the provider over-returns.
      */
     comments(request: ZhihuCommentsRequest, signal?: AbortSignal): Promise<ZhihuCommentsPage>;
+    /**
+     * Read the replies under one root comment.
+     * @param request - the root comment id and an optional reply limit.
+     * @param signal - cancellation of the call.
+     * @returns one slice of the replies, capped to `request.limit`.
+     */
+    replies(request: ZhihuRepliesRequest, signal?: AbortSignal): Promise<ZhihuCommentsPage>;
     /** Select the provider with the rules above, throwing the matching {@link ZhihuError}. */
     private selectProvider;
 }

@@ -4,7 +4,7 @@
  * link is built from a lossless id.
  * @module @deepseek-ai/dsh-zhihu-plugin/http/provider
  */
-import { type ZhihuCommentsPage, type ZhihuCommentsRequest, type ZhihuFeedPage, type ZhihuFeedRequest, type ZhihuProvider, type ZhihuReadRequest, type ZhihuReadResult, type ZhihuSearchPage, type ZhihuSearchRequest } from '../service/index.ts';
+import { type ZhihuCommentsPage, type ZhihuCommentsRequest, type ZhihuFeedPage, type ZhihuFeedRequest, type ZhihuProvider, type ZhihuReadRequest, type ZhihuReadResult, type ZhihuRepliesRequest, type ZhihuSearchPage, type ZhihuSearchRequest } from '../service/index.ts';
 import type { ZhihuTransport } from './types.ts';
 /** Construction inputs for {@link ZhihuHttpProvider}. */
 export interface ZhihuHttpProviderOptions {
@@ -83,6 +83,22 @@ export declare class ZhihuHttpProvider implements ZhihuProvider {
      * @returns the comments read, and the content's root-comment count when the payload carries one.
      */
     comments(request: ZhihuCommentsRequest, signal?: AbortSignal): Promise<ZhihuCommentsPage>;
+    /**
+     * Read the replies under one root comment. Zhihu keeps a thread two levels deep, so this list
+     * also carries the answers to those replies.
+     * @param request - the root comment id and an optional reply limit.
+     * @param signal - cancellation of the call.
+     * @returns one slice of the replies with the thread size when the payload names it.
+     */
+    replies(request: ZhihuRepliesRequest, signal?: AbortSignal): Promise<ZhihuCommentsPage>;
+    /**
+     * Walk a comment listing until the limit is met or the page budget is spent.
+     * @param first - absolute URL of the first page to fetch.
+     * @param limit - comments wanted; omitted reads the provider's page size.
+     * @param signal - cancellation of the call.
+     * @returns the comments read and the thread size when the payload names it.
+     */
+    private walkComments;
     /**
      * Read search entries across the configured page budget. An order or a window needs more than
      * the single relevance-ordered page the endpoint answers, or it would have nothing to choose

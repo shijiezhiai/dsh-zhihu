@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import type { RemoteFailure } from '@deepseek-ai/dsh-api-remotes/client';
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
-import type { ZhihuCommentsResult, ZhihuFeedRow, ZhihuReadItem } from '@deepseek-ai/dsh-zhihu-plugin/types';
+import type { ZhihuCommentRow, ZhihuCommentsResult, ZhihuFeedRow, ZhihuReadItem } from '@deepseek-ai/dsh-zhihu-plugin/types';
 import type { ZhihuPageOutcome } from './zhihu-page-face.ts';
 import type { ZhihuPageDensity, ZhihuRankMove } from './zhihu-page-store.ts';
 /** Copy handle of the Zhihu namespace. */
@@ -57,12 +57,30 @@ export declare function ZhihuRowList({ rows, t, onOpen, moves, counted, density 
  * @param props.row - the row whose thread this is.
  * @param props.t - copy of the Zhihu namespace.
  * @param props.load - reads one slice of the thread.
+ * @param props.loadReplies - reads one slice of the replies under one comment.
  * @returns the comment section.
  */
-export declare function ZhihuComments({ row, t, load }: {
+export declare function ZhihuComments({ row, t, load, loadReplies }: {
     readonly row: ZhihuFeedRow;
     readonly t: ZhihuTranslate;
     readonly load: (row: ZhihuFeedRow, limit: number) => Promise<ZhihuPageOutcome<ZhihuCommentsResult>>;
+    /** Reads one slice of a comment's replies; omitted where the seat has no reply lane. */
+    readonly loadReplies?: (commentId: string, limit: number) => Promise<ZhihuPageOutcome<ZhihuCommentsResult>>;
+}): ReactNode;
+/**
+ * Render the replies under one root comment, requested only once the reader asks for them.
+ *
+ * Zhihu keeps one level of replies: a reply to a reply arrives in the same list, so nothing here
+ * opens a further thread.
+ * @param props.comment - the root comment whose replies these are.
+ * @param props.t - copy of the Zhihu namespace.
+ * @param props.load - reads one slice of the replies.
+ * @returns the reply list, or the button that reveals it.
+ */
+export declare function ZhihuReplies({ comment, t, load }: {
+    readonly comment: ZhihuCommentRow;
+    readonly t: ZhihuTranslate;
+    readonly load: (commentId: string, limit: number) => Promise<ZhihuPageOutcome<ZhihuCommentsResult>>;
 }): ReactNode;
 /**
  * Render one opened row: its title, body, author line, and the refusal path.
@@ -71,13 +89,15 @@ export declare function ZhihuComments({ row, t, load }: {
  * @param props.onRetry - called when the reader retries a refused read.
  * @param props.onAsk - drafts a conversation about this row; omitted where the seat has no Workspace.
  * @param props.onComments - reads the row's thread; omitted where the seat has no comment lane.
+ * @param props.onReplies - reads a comment's replies; omitted where the seat has no reply lane.
  * @returns the opened row.
  */
-export declare function ZhihuOpenedContent<R extends ZhihuFeedRow>({ state, t, onRetry, onAsk, onComments }: {
+export declare function ZhihuOpenedContent<R extends ZhihuFeedRow>({ state, t, onRetry, onAsk, onComments, onReplies }: {
     readonly state: ZhihuOpenedRow<R>;
     readonly t: ZhihuTranslate;
     readonly onRetry: () => void;
     readonly onAsk?: () => void;
     readonly onComments?: (row: ZhihuFeedRow, limit: number) => Promise<ZhihuPageOutcome<ZhihuCommentsResult>>;
+    readonly onReplies?: (commentId: string, limit: number) => Promise<ZhihuPageOutcome<ZhihuCommentsResult>>;
 }): ReactNode;
 //# sourceMappingURL=ZhihuContent.d.ts.map

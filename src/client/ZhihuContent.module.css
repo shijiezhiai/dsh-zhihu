@@ -161,3 +161,27 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+
+.replies {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding-left: 12px;
+  border-left: 2px solid var(--dsw-alias-border-l2);
+}
+
+.replyList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.reply {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}

@@ -48,6 +48,13 @@ export interface ZhihuPageFace {
      */
     comments(row: ZhihuFeedRow, limit?: number): Promise<ZhihuPageOutcome<ZhihuCommentsResult>>;
     /**
+     * Read one slice of the replies under a root comment.
+     * @param commentId - the root comment whose replies to read.
+     * @param limit - replies requested; omitted reads the page's default slice.
+     * @returns the replies and the thread's size, or the refusal.
+     */
+    replies(commentId: string, limit?: number): Promise<ZhihuPageOutcome<ZhihuCommentsResult>>;
+    /**
      * Read the deployment settings this page applies. A Client whose Host publishes no namespace, or
      * a refused call, leaves the page on its own cap, so this reports no failure of its own.
      * @returns the settings, or undefined when the answer is unavailable.

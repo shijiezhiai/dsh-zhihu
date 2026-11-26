@@ -17,6 +17,7 @@ import {
   type ZhihuProvider,
   type ZhihuReadRequest,
   type ZhihuReadResult,
+  type ZhihuRepliesRequest,
   type ZhihuSearchHit,
   type ZhihuSearchPage,
   type ZhihuSearchRequest,
@@ -207,16 +208,38 @@ export class ZhihuHttpProvider implements ZhihuProvider {
    * @returns the comments read, and the content's root-comment count when the payload carries one.
    */
   async comments(request: ZhihuCommentsRequest, signal?: AbortSignal): Promise<ZhihuCommentsPage> {
-    const limit = request.limit ?? this.options.pageSize
+    return await this.walkComments(commentUrl(request.kind, request.id, request.limit ?? this.options.pageSize), request.limit, signal)
+  }
+
+  /**
+   * Read the replies under one root comment. Zhihu keeps a thread two levels deep, so this list
+   * also carries the answers to those replies.
+   * @param request - the root comment id and an optional reply limit.
+   * @param signal - cancellation of the call.
+   * @returns one slice of the replies with the thread size when the payload names it.
+   */
+  async replies(request: ZhihuRepliesRequest, signal?: AbortSignal): Promise<ZhihuCommentsPage> {
+    return await this.walkComments(childCommentUrl(request.commentId, request.limit ?? this.options.pageSize), request.limit, signal)
+  }
+
+  /**
+   * Walk a comment listing until the limit is met or the page budget is spent.
+   * @param first - absolute URL of the first page to fetch.
+   * @param limit - comments wanted; omitted reads the provider's page size.
+   * @param signal - cancellation of the call.
+   * @returns the comments read and the thread size when the payload names it.
+   */
+  private async walkComments(first: string, limit: number | undefined, signal: AbortSignal | undefined): Promise<ZhihuCommentsPage> {
+    const wanted = limit ?? this.options.pageSize
     const items: ZhihuComment[] = []
-    let next: string | undefined = commentUrl(request.kind, request.id, limit)
+    let next: string | undefined = first
     let total: number | undefined
-    for (let pages = 0; next !== undefined && pages < this.options.commentPages && items.length < limit; pages += 1) {
+    for (let pages = 0; next !== undefined && pages < this.options.commentPages && items.length < wanted; pages += 1) {
       const body = await this.options.transport.get<ZhihuListBody<ZhihuCommentRow>>(next, signal)
       items.push(...(body.data ?? []).flatMap(row => commentItem(row)))
       total = body.paging?.totals ?? total
       next = nextPageUrl(body.paging)
-      if (next !== undefined) next = withLimit(next, limit - items.length)
+      if (next !== undefined) next = withLimit(next, wanted - items.length)
     }
     return { items, ...(total === undefined ? {} : { total }) }
   }
@@ -418,6 +441,16 @@ function zhihuUrl(candidate: string | undefined): string | undefined {
  */
 function commentUrl(kind: ZhihuContentKind, id: string, limit: number): string {
   return `${API_ROOT}/api/v4/comment_v5/${COMMENT_KIND[kind]}/${id}/root_comment?order=score&filter_tag=all&limit=${limit}`
+}
+
+/**
+ * Address the replies under one root comment.
+ * @param commentId - lossless decimal id of the root comment.
+ * @param limit - replies requested from the first page.
+ * @returns the absolute request URL.
+ */
+function childCommentUrl(commentId: string, limit: number): string {
+  return `${API_ROOT}/api/v4/comment_v5/comment/${commentId}/child_comment?order_by=score&limit=${limit}`
 }
 
 /**

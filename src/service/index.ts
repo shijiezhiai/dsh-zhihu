@@ -18,6 +18,7 @@ import type {
   ZhihuProvider,
   ZhihuReadRequest,
   ZhihuReadResult,
+  ZhihuRepliesRequest,
   ZhihuSearchPage,
   ZhihuSearchRequest,
 } from './types.ts'
@@ -36,6 +37,7 @@ export type {
   ZhihuReadKind,
   ZhihuReadRequest,
   ZhihuReadResult,
+  ZhihuRepliesRequest,
   ZhihuSearchHit,
   ZhihuSearchPage,
   ZhihuSearchRequest,
@@ -180,6 +182,20 @@ export class ZhihuService extends Service {
    */
   async comments(request: ZhihuCommentsRequest, signal?: AbortSignal): Promise<ZhihuCommentsPage> {
     const page = await this.selectProvider().comments(request, signal)
+    return {
+      items: capItems([...page.items], request.limit),
+      ...(page.total === undefined ? {} : { total: page.total }),
+    }
+  }
+
+  /**
+   * Read the replies under one root comment.
+   * @param request - the root comment id and an optional reply limit.
+   * @param signal - cancellation of the call.
+   * @returns one slice of the replies, capped to `request.limit`.
+   */
+  async replies(request: ZhihuRepliesRequest, signal?: AbortSignal): Promise<ZhihuCommentsPage> {
+    const page = await this.selectProvider().replies(request, signal)
     return {
       items: capItems([...page.items], request.limit),
       ...(page.total === undefined ? {} : { total: page.total }),

@@ -8,8 +8,8 @@ import { credentialRef } from '@deepseek-ai/dsh-credentials'
 import type {
   ZhihuClientSettings, ZhihuCommentsQuery, ZhihuCommentsResult, ZhihuExportQuery, ZhihuExportResult,
   ZhihuFailureTarget, ZhihuFeedQuery,
-  ZhihuFeedResult, ZhihuReadItem, ZhihuReadQuery, ZhihuRemoteFailureCode, ZhihuSearchQuery,
-  ZhihuSearchResult,
+  ZhihuFeedResult, ZhihuReadItem, ZhihuReadQuery, ZhihuRemoteFailureCode, ZhihuRepliesQuery,
+  ZhihuSearchQuery, ZhihuSearchResult,
 } from './types.ts'
 import { fileCapture, noteName, notePath, ObsidianError } from './obsidian.ts'
 
@@ -185,6 +185,24 @@ export default class ZhihuController extends TypertRemoteService {
   }
 
   /**
+   * Read the replies under one root comment.
+   * @param request - the root comment id and an optional reply limit.
+   * @returns one slice of the replies and the thread size when the payload names it.
+   */
+  @Remote
+  async replies(request: ZhihuRepliesQuery): Promise<ZhihuCommentsResult> {
+    const query = this.resolveReplies(request)
+    try {
+      const page = await this.ctx.zhihu.replies(query)
+      return { items: page.items, ...(page.total === undefined ? {} : { total: page.total }) }
+    } catch (error) {
+      const failure = seamFailure(error, 'comments')
+      if (failure === undefined) throw error
+      throw failure
+    }
+  }
+
+  /**
    * File one capture into the Obsidian vault, adding a marked passage to the note it came from.
    * @param request - the opened row plus the body the reader already holds.
    * @returns the vault path that was written.
@@ -297,6 +315,19 @@ export default class ZhihuController extends TypertRemoteService {
    * @param request - request as the Client sent it.
    * @returns the request `ctx.zhihu` must serve.
    */
+  /**
+   * Validate one replies request and apply the deployment's limit.
+   * @param request - the wire request.
+   * @returns the seam request.
+   */
+  private resolveReplies(request: ZhihuRepliesQuery): ZhihuRepliesQuery {
+    if (request.commentId.length === 0) {
+      throw new RemoteError('gateway/bad-request', 'commentId must not be empty', {})
+    }
+    const limit = request.limit === undefined ? this.config.defaultLimit : requireLimit(request.limit)
+    return { commentId: request.commentId, limit: Math.min(limit, this.config.maxLimit) }
+  }
+
   private resolveComments(request: ZhihuCommentsQuery): ZhihuCommentsQuery {
     if (request.id.length === 0) {
       throw new RemoteError('gateway/bad-request', 'id must not be empty', {})

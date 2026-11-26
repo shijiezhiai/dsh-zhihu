@@ -61,6 +61,13 @@ export interface ZhihuPageFace {
    */
   comments(row: ZhihuFeedRow, limit?: number): Promise<ZhihuPageOutcome<ZhihuCommentsResult>>
   /**
+   * Read one slice of the replies under a root comment.
+   * @param commentId - the root comment whose replies to read.
+   * @param limit - replies requested; omitted reads the page's default slice.
+   * @returns the replies and the thread's size, or the refusal.
+   */
+  replies(commentId: string, limit?: number): Promise<ZhihuPageOutcome<ZhihuCommentsResult>>
+  /**
    * Read the deployment settings this page applies. A Client whose Host publishes no namespace, or
    * a refused call, leaves the page on its own cap, so this reports no failure of its own.
    * @returns the settings, or undefined when the answer is unavailable.
@@ -123,6 +130,13 @@ export function zhihuPageFace(resolveRemote: () => ClientRemote['zhihu'] | undef
         ? { kind: row.kind, id: row.id }
         : { kind: row.kind, id: row.id, limit }
       const result = await remote.comments(request)
+      return result.ok ? { ok: true, value: result.value } : { ok: false, failure: result.error }
+    },
+    async replies(commentId, limit) {
+      const remote = resolveRemote()
+      if (remote === undefined) return unavailable('comments')
+      const request = limit === undefined ? { commentId } : { commentId, limit }
+      const result = await remote.replies(request)
       return result.ok ? { ok: true, value: result.value } : { ok: false, failure: result.error }
     },
     async settings() {
