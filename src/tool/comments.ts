@@ -245,14 +245,14 @@ export function applyZhihuCommentsTool(ctx: Context, limits: ZhihuToolLimits): v
     timeoutMs,
     // Reading comments does not mutate parent-agent state.
     isConcurrencySafe: () => true,
-    async execute(args) {
+    async execute(args, exec) {
       const kind = COMMENT_KINDS.find(candidate => candidate === args.kind)
       if (kind === undefined) throw new Error(`kind must be one of ${COMMENT_KINDS.join(', ')}`)
       const id = requireText(args.id, 'id')
       const limit = resolveLimit(args.limit, 'limit', maxItems)
       let page: ZhihuCommentsPage
       try {
-        page = await ctx.zhihu.comments({ kind, id, limit })
+        page = await ctx.zhihu.comments({ kind, id, limit }, exec.signal)
       } catch (error) {
         throw new Error(describeZhihuFailure(error), { cause: error })
       }

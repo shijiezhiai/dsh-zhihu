@@ -138,10 +138,11 @@ export class ZhihuService extends Service {
   /**
    * List one feed page through the selected provider, capped to `request.limit`.
    * @param request - the feed kind, an optional item limit, and an optional continuation token.
+   * @param signal - cancellation of the call.
    * @returns the page, its entries truncated when the provider over-returns.
    */
-  async feed(request: ZhihuFeedRequest): Promise<ZhihuFeedPage> {
-    const page = await this.selectProvider().feed(request)
+  async feed(request: ZhihuFeedRequest, signal?: AbortSignal): Promise<ZhihuFeedPage> {
+    const page = await this.selectProvider().feed(request, signal)
     const cap = request.limit
     if (cap === undefined || page.items.length <= cap) return page
     return { items: page.items.slice(0, cap), ...(page.cursor === undefined ? {} : { cursor: page.cursor }) }
@@ -151,19 +152,21 @@ export class ZhihuService extends Service {
    * Read one question or answer through the selected provider. A question read returns its title
    * plus the text of one answer, because Zhihu's question-detail API is unavailable.
    * @param request - the content kind, its lossless id, and an optional answer count.
+   * @param signal - cancellation of the call.
    * @returns the read result with the body already converted to plain text.
    */
-  async read(request: ZhihuReadRequest): Promise<ZhihuReadResult> {
-    return await this.selectProvider().read(request)
+  async read(request: ZhihuReadRequest, signal?: AbortSignal): Promise<ZhihuReadResult> {
+    return await this.selectProvider().read(request, signal)
   }
 
   /**
    * Search Zhihu content through the selected provider, capped to `request.limit`.
    * @param request - the query, an optional hit limit, and an optional continuation token.
+   * @param signal - cancellation of the call.
    * @returns the page, its hits truncated when the provider over-returns.
    */
-  async search(request: ZhihuSearchRequest): Promise<ZhihuSearchPage> {
-    const page = await this.selectProvider().search(request)
+  async search(request: ZhihuSearchRequest, signal?: AbortSignal): Promise<ZhihuSearchPage> {
+    const page = await this.selectProvider().search(request, signal)
     const hits = capItems([...page.items], request.limit)
     return page.cursor === undefined ? { items: hits } : { items: hits, cursor: page.cursor }
   }
@@ -172,10 +175,11 @@ export class ZhihuService extends Service {
    * List one slice of a content's root comments through the selected provider, capped to
    * `request.limit`.
    * @param request - the content kind and id, and an optional comment limit.
+   * @param signal - cancellation of the call.
    * @returns the comments read, truncated when the provider over-returns.
    */
-  async comments(request: ZhihuCommentsRequest): Promise<ZhihuCommentsPage> {
-    const page = await this.selectProvider().comments(request)
+  async comments(request: ZhihuCommentsRequest, signal?: AbortSignal): Promise<ZhihuCommentsPage> {
+    const page = await this.selectProvider().comments(request, signal)
     return {
       items: capItems([...page.items], request.limit),
       ...(page.total === undefined ? {} : { total: page.total }),

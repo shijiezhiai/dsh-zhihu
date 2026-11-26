@@ -206,26 +206,30 @@ export interface ZhihuProvider {
     /**
      * List one feed.
      * @param request - the feed kind, an optional item limit, and an optional continuation token.
+     * @param signal - cancellation of the call; a provider must stop its own work when it aborts.
      * @returns one page; the seam caps its entries to `request.limit`.
      */
-    feed(request: ZhihuFeedRequest): Promise<ZhihuFeedPage>;
+    feed(request: ZhihuFeedRequest, signal?: AbortSignal): Promise<ZhihuFeedPage>;
     /**
      * Read one question or answer.
      * @param request - the content kind, its id, and an optional answer count.
+     * @param signal - cancellation of the call; a provider must stop its own work when it aborts.
      * @returns the read result.
      */
-    read(request: ZhihuReadRequest): Promise<ZhihuReadResult>;
+    read(request: ZhihuReadRequest, signal?: AbortSignal): Promise<ZhihuReadResult>;
     /**
      * Search Zhihu content.
      * @param request - the query, an optional hit limit, and an optional continuation token.
+     * @param signal - cancellation of the call; a provider must stop its own work when it aborts.
      * @returns one page of content hits; the seam caps them to `request.limit`.
      */
-    search(request: ZhihuSearchRequest): Promise<ZhihuSearchPage>;
+    search(request: ZhihuSearchRequest, signal?: AbortSignal): Promise<ZhihuSearchPage>;
     /**
      * List one page of a content's root comments.
      * @param request - the content kind and id, and an optional comment limit.
+     * @param signal - cancellation of the call; a provider must stop its own work when it aborts.
      * @returns one slice of the thread; the seam caps its comments to `request.limit`.
      */
-    comments(request: ZhihuCommentsRequest): Promise<ZhihuCommentsPage>;
+    comments(request: ZhihuCommentsRequest, signal?: AbortSignal): Promise<ZhihuCommentsPage>;
 }
 //# sourceMappingURL=types.d.ts.map

@@ -36,15 +36,16 @@ export class ZhihuCachedTransport implements ZhihuTransport {
   /**
    * Answer one GET, from memory while its entry is fresh.
    * @param url - absolute request URL, which is also the cache key.
+   * @param signal - cancellation of the request this call misses into.
    * @returns the parsed body.
    */
-  async get<T>(url: string): Promise<T> {
+  async get<T>(url: string, signal?: AbortSignal): Promise<T> {
     const entry = this.entries.get(url)
     if (entry !== undefined) {
       if (this.options.clock.now() - entry.storedAt < this.options.ttlMs) return entry.body as T
       this.entries.delete(url)
     }
-    const body = await this.options.inner.get<T>(url)
+    const body = await this.options.inner.get<T>(url, signal)
     this.prune()
     this.entries.set(url, { storedAt: this.options.clock.now(), body })
     return body

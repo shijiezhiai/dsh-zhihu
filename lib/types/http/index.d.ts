@@ -47,6 +47,11 @@ export interface Config {
     readonly commentPages?: number;
     /** How long one response stays usable for an identical request, in milliseconds; 0 disables the cache. */
     readonly cacheTtlMs?: number;
+    /**
+     * Longest `Retry-After` wait a throttled request absorbs before it is sent once more, in
+     * milliseconds; 0 reports every throttled request immediately without a resend.
+     */
+    readonly retryCeilingMs?: number;
     /** `user-agent` header value. */
     readonly userAgent?: string;
 }

@@ -24,9 +24,10 @@ export declare class ZhihuCachedTransport implements ZhihuTransport {
     /**
      * Answer one GET, from memory while its entry is fresh.
      * @param url - absolute request URL, which is also the cache key.
+     * @param signal - cancellation of the request this call misses into.
      * @returns the parsed body.
      */
-    get<T>(url: string): Promise<T>;
+    get<T>(url: string, signal?: AbortSignal): Promise<T>;
     /**
      * Drop every entry whose lifetime has elapsed. Called before a store so that keys a caller never
      * re-requests do not accumulate for the life of the plugin mount.

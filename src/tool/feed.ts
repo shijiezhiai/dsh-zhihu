@@ -236,7 +236,7 @@ export function applyZhihuFeedTool(ctx: Context, limits: ZhihuToolLimits): void 
     timeoutMs,
     // Feed reads do not mutate parent-agent state.
     isConcurrencySafe: () => true,
-    async execute(args) {
+    async execute(args, exec) {
       const limit = resolveLimit(args.limit, 'limit', maxItems)
       const topic = readString(args, 'topic')?.trim() ?? ''
       if (args.kind === 'topic' && topic.length === 0) {
@@ -250,7 +250,7 @@ export function applyZhihuFeedTool(ctx: Context, limits: ZhihuToolLimits): void 
           limit,
           ...(args.kind === 'topic' ? { topic } : {}),
           ...(cursor.length === 0 ? {} : { cursor }),
-        })
+        }, exec.signal)
       } catch (error) {
         throw new Error(describeZhihuFailure(error), { cause: error })
       }

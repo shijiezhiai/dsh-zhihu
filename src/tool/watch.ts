@@ -228,7 +228,7 @@ export function applyZhihuWatchTool(ctx: Context, limits: ZhihuToolLimits): void
   const readLane = async (keyword: string, limit: number, signal: AbortSignal): Promise<readonly ZhihuFeedItem[]> => {
     signal.throwIfAborted()
     try {
-      return (await ctx.zhihu.feed({ kind: 'topic', topic: keyword, limit })).items
+      return (await ctx.zhihu.feed({ kind: 'topic', topic: keyword, limit }, signal)).items
     } catch (error) {
       throw new Error(describeZhihuFailure(error), { cause: error })
     }

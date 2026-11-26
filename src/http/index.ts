@@ -61,6 +61,11 @@ export interface Config {
   readonly commentPages?: number
   /** How long one response stays usable for an identical request, in milliseconds; 0 disables the cache. */
   readonly cacheTtlMs?: number
+  /**
+   * Longest `Retry-After` wait a throttled request absorbs before it is sent once more, in
+   * milliseconds; 0 reports every throttled request immediately without a resend.
+   */
+  readonly retryCeilingMs?: number
   /** `user-agent` header value. */
   readonly userAgent?: string
 }
@@ -77,6 +82,7 @@ export const Config: z<Config> = z.object({
   searchScanPages: z.number().default(3),
   commentPages: z.number().default(3),
   cacheTtlMs: z.number().default(60_000),
+  retryCeilingMs: z.number().default(30_000),
   userAgent: z.string().default(DEFAULT_USER_AGENT),
 })
 
@@ -116,6 +122,7 @@ export function apply(ctx: Context, config: Config): void {
   assertPositiveInteger('searchScanPages', resolved.searchScanPages)
   assertPositiveInteger('commentPages', resolved.commentPages)
   assertCacheTtlMs(resolved.cacheTtlMs)
+  assertRetryCeilingMs(resolved.retryCeilingMs)
   assertCredentialName(resolved.credential)
   assertUserAgent(resolved.userAgent)
   const client = new ZhihuHttpClient({
@@ -124,6 +131,7 @@ export function apply(ctx: Context, config: Config): void {
     userAgent: resolved.userAgent,
     requestTimeoutMs: resolved.requestTimeoutMs,
     minIntervalMs: resolved.minIntervalMs,
+    retryCeilingMs: resolved.retryCeilingMs,
   })
   const transport = resolved.cacheTtlMs === 0
     ? client
@@ -166,6 +174,16 @@ function assertMinIntervalMs(value: number): void {
 function assertCacheTtlMs(value: number): void {
   if (!Number.isInteger(value) || value < 0 || value > MAX_NODE_TIMER_DELAY_MS) {
     throw new Error(`zhihu-http: cacheTtlMs must be an integer between 0 and ${MAX_NODE_TIMER_DELAY_MS}; 0 disables the cache`)
+  }
+}
+
+/**
+ * Reject a retry ceiling Node cannot compare against, or that no caller could mean.
+ * @param value - configured `retryCeilingMs`, where 0 disables the resend.
+ */
+function assertRetryCeilingMs(value: number): void {
+  if (!Number.isInteger(value) || value < 0 || value > MAX_NODE_TIMER_DELAY_MS) {
+    throw new Error(`zhihu-http: retryCeilingMs must be an integer between 0 and ${MAX_NODE_TIMER_DELAY_MS}; 0 disables the resend`)
   }
 }
 

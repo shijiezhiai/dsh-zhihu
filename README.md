@@ -58,6 +58,7 @@ Every setting has a default and is validated at load:
 | `http.answerLimit` | `1` | Answers read with one question |
 | `http.commentPages` | `3` | Pages one comments call may walk |
 | `http.cacheTtlMs` | `60000` | How long a repeated identical request answers from memory; `0` disables the cache |
+| `http.retryCeilingMs` | `30000` | Longest `Retry-After` wait one request absorbs before it is sent once more; `0` never resends |
 | `tool.maxItems` | `20` | Entries one tool call returns |
 | `tool.maxAnswerLimit` | `5` | Answers a tool call may ask for |
 | `tool.excerptMaxChars` | `200` | Excerpt length in feed rows |
@@ -78,7 +79,7 @@ What the reader gets: lanes for hot, recommendation, follow, a watched keyword a
 <details>
 <summary>Implementation internals — click to expand</summary>
 
-`src/index.ts` is the only Host entry: its `apply` mounts the `ctx.zhihu` seam, the credentialed HTTP provider, the model tools and the authenticated Remote, while `package.json` declares the browser half through `dsh.client`, so one install covers both planes. The seam answers feeds, reads, search and comments; the provider owns the cookie, the spacing between calls, the cache that answers a repeated request from memory for `http.cacheTtlMs` and the typed failures, which carry the wait a throttling response named; the tools render what the model reads; and the Remote serves bounded rows to the panel, which never calls Zhihu itself.
+`src/index.ts` is the only Host entry: its `apply` mounts the `ctx.zhihu` seam, the credentialed HTTP provider, the model tools and the authenticated Remote, while `package.json` declares the browser half through `dsh.client`, so one install covers both planes. The seam answers feeds, reads, search and comments; the provider owns the cookie, the spacing between calls, the cache that answers a repeated request from memory for `http.cacheTtlMs`, the single resend it performs after a wait up to `http.retryCeilingMs`, and the typed failures, which carry the wait a throttling response named; the tools render what the model reads; and the Remote serves bounded rows to the panel, which never calls Zhihu itself.
 
 | Source | Contents |
 |---|---|
@@ -184,7 +185,7 @@ Same as the other tools: the declaration never moves, and each call appends its 
 - A passage filed on its own reads the note first and appends one section, so the vault has to serve that note back; a vault that refuses the read reports the refusal and writes nothing. Filing the same passage twice writes nothing the second time, while the same words selected elsewhere in the item append a second section under the same heading.
 - An export files the discussion only while that item's Discussion segment is open in the panel; a discussion resumed later is not read back for the note.
 - The comments endpoint answers at most ten root comments per page in Zhihu's own hotness order, so a call answers one slice of a thread and a larger limit reads further instead of paging back; a challenge page surfaces as `ZHIHU_BLOCKED` rather than as an empty thread.
-- Zhihu throttles: the provider spaces calls by `http.minIntervalMs` and the tools report the failure rather than retrying, so a burst of calls can surface an error the reader has to repeat; a throttled response that names a `Retry-After` wait keeps it, and the failure message says how many seconds to wait.
+- Zhihu throttles: the provider spaces calls by `http.minIntervalMs`, and a throttled response that names a `Retry-After` wait no longer than `http.retryCeilingMs` is absorbed once — the request waits that long, then is sent one more time. A longer or unnamed wait is reported instead, so a burst of calls can still surface an error the reader has to repeat; the failure message says how many seconds to wait, and cancelling the call ends the wait immediately.
 - `zhihu_watch` keeps a keyword's baseline in the Host process, so a restart re-arms every check as a fresh baseline and the first check after a restart reports nothing new. The reminder belongs to the Session that created it, and the Schedule service refuses intervals shorter than one minute.
 - An installed tarball is recorded by URL, so a profile upgrades only when it is handed the new release's URL; the plugin-market entry pins one version at a time.
 - The Host half loads at startup, so enabling, disabling or updating the package needs a restart.

@@ -41,13 +41,15 @@ export declare class ZhihuHttpProvider implements ZhihuProvider {
      * carry a continuation URL, so they are followed until `request.limit` is met or
      * `maxFeedPages` is spent.
      * @param request - the feed kind, an optional item limit, and an optional continuation token.
+     * @param signal - cancellation of the call.
      * @returns the page with promo entries dropped.
      */
-    feed(request: ZhihuFeedRequest): Promise<ZhihuFeedPage>;
+    feed(request: ZhihuFeedRequest, signal?: AbortSignal): Promise<ZhihuFeedPage>;
     /**
      * Follow a feed's continuation URLs until the limit is met or the page budget is spent.
      * @param first - absolute URL of the first page to fetch.
      * @param limit - item cap for the returned page.
+     * @param signal - cancellation of the call.
      * @returns the collected items and the continuation token, when one remains.
      */
     private pageFeed;
@@ -56,33 +58,37 @@ export declare class ZhihuHttpProvider implements ZhihuProvider {
      * question-detail API is unavailable, so a question read goes through the answers list and takes
      * the question title from an included answer.
      * @param request - the content kind, its lossless id, an article's title, and an optional answer count.
+     * @param signal - cancellation of the call.
      * @returns the read result with plain text capped by `maxContentChars`.
      */
-    read(request: ZhihuReadRequest): Promise<ZhihuReadResult>;
+    read(request: ZhihuReadRequest, signal?: AbortSignal): Promise<ZhihuReadResult>;
     /**
      * Search Zhihu content, dropping every non-content entry. The endpoint answers one
      * relevance-ordered page and ignores every sort and date parameter, so an order or a window is
      * computed here from several pages of entries.
      * @param request - the query, an optional hit limit, an optional continuation token, and the
      *   order and time window the hits must satisfy.
+     * @param signal - cancellation of the call.
      * @returns one page of hits; an ordered or windowed search answers a slice with no token,
      *   because a continuation would interleave with the order it imposed.
      */
-    search(request: ZhihuSearchRequest): Promise<ZhihuSearchPage>;
+    search(request: ZhihuSearchRequest, signal?: AbortSignal): Promise<ZhihuSearchPage>;
     /**
      * List a content's root comments. They are a smell test on the content rather than evidence about
      * it, so the first answers are the ones worth reading. Zhihu ranks a page at ten comments at
      * most, so a larger limit is filled from the continuation URLs it hands out; each page asks only
      * for what is still missing, which keeps every comment of a page it reads.
      * @param request - the content kind and id, and an optional comment limit.
+     * @param signal - cancellation of the call.
      * @returns the comments read, and the content's root-comment count when the payload carries one.
      */
-    comments(request: ZhihuCommentsRequest): Promise<ZhihuCommentsPage>;
+    comments(request: ZhihuCommentsRequest, signal?: AbortSignal): Promise<ZhihuCommentsPage>;
     /**
      * Read search entries across the configured page budget. An order or a window needs more than
      * the single relevance-ordered page the endpoint answers, or it would have nothing to choose
      * from.
      * @param query - search text.
+     * @param signal - cancellation of the call.
      * @returns every entry read, promos included, in the order the endpoint answered.
      */
     private scanSearch;
@@ -93,6 +99,7 @@ export declare class ZhihuHttpProvider implements ZhihuProvider {
      * @param query - search text.
      * @param limit - entries requested.
      * @param offset - entries to skip; the endpoint pages by this alone.
+     * @param signal - cancellation of the call.
      * @returns the entries as they arrived, promos included.
      */
     private searchEntries;

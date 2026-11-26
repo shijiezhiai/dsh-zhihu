@@ -21,9 +21,10 @@ export interface ZhihuTransport {
     /**
      * Perform one GET and parse the body losslessly.
      * @param url - absolute request URL.
+     * @param signal - cancellation of the call and of any wait it performs.
      * @returns the parsed body.
      */
-    get<T>(url: string): Promise<T>;
+    get<T>(url: string, signal?: AbortSignal): Promise<T>;
 }
 /** The `error` member of a Zhihu failure body. */
 export interface ZhihuWireError {

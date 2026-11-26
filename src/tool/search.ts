@@ -260,7 +260,7 @@ export function applyZhihuSearchTool(ctx: Context, limits: ZhihuToolLimits): voi
     timeoutMs,
     // Search reads do not mutate parent-agent state.
     isConcurrencySafe: () => true,
-    async execute(args) {
+    async execute(args, exec) {
       const query = requireText(args.query, 'query')
       const limit = resolveLimit(args.limit, 'limit', maxItems)
       const cursor = typeof args.cursor === 'string' && args.cursor.trim() !== '' ? args.cursor.trim() : undefined
@@ -274,7 +274,7 @@ export function applyZhihuSearchTool(ctx: Context, limits: ZhihuToolLimits): voi
           ...(cursor === undefined ? {} : { cursor }),
           ...(sort === 'relevance' ? {} : { sort }),
           ...(timeWindow === undefined ? {} : { timeWindow }),
-        })
+        }, exec.signal)
       } catch (error) {
         throw new Error(describeZhihuFailure(error), { cause: error })
       }

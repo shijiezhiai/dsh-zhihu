@@ -209,7 +209,7 @@ export function applyZhihuReadTool(ctx: Context, limits: ZhihuToolLimits): void 
     timeoutMs,
     // Reads do not mutate parent-agent state.
     isConcurrencySafe: () => true,
-    async execute(args) {
+    async execute(args, exec) {
       const id = requireText(args.id, 'id')
       const title = args.kind === 'article' ? requireText(args.title ?? '', 'title') : undefined
       const answerLimit = args.kind === 'question' && args.answerLimit !== undefined
@@ -222,7 +222,7 @@ export function applyZhihuReadTool(ctx: Context, limits: ZhihuToolLimits): void 
           id,
           ...(title === undefined ? {} : { title }),
           ...(answerLimit === undefined ? {} : { answerLimit }),
-        })
+        }, exec.signal)
       } catch (error) {
         throw new Error(describeZhihuFailure(error), { cause: error })
       }

@@ -2,6 +2,13 @@
 
 Every tag publishes the prebuilt tarball the plugin-market entry installs, at `https://github.com/shijiezhiai/dsh-zhihu/releases/download/v<version>/dsh-zhihu.tgz`; the asset name stays `dsh-zhihu.tgz`, so a version is identified by its URL.
 
+## 1.9.2
+
+### Added
+
+- The HTTP client absorbs one throttling wait: a response that names a `Retry-After` no longer than `http.retryCeilingMs` (default 30 s) is waited out and the request is sent once more, so a burst that Zhihu briefly refuses no longer surfaces as a failure. A longer or unnamed wait, or a second failure of the same request, is still reported with the seconds to wait. `0` restores the previous behaviour of reporting every throttled request immediately.
+- The wait, and the request itself, end as soon as the calling tool is cancelled: the signal a tool receives now reaches the seam, the transport, and the retry wait.
+
 ## 1.9.1
 
 ### Fixed

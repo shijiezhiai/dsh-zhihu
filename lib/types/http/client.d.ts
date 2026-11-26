@@ -17,6 +17,8 @@ export interface ZhihuHttpClientOptions {
     readonly requestTimeoutMs: number;
     /** Minimum spacing between two requests made by this client. */
     readonly minIntervalMs: number;
+    /** Longest wait a throttled request absorbs before it is sent once more, in milliseconds; 0 never resends. */
+    readonly retryCeilingMs: number;
 }
 /**
  * The transport behind {@link ZhihuHttpProvider}: one serial queue, one rate-limit slot per request,
@@ -30,11 +32,23 @@ export declare class ZhihuHttpClient implements ZhihuTransport {
     /**
      * Perform one GET through the serial queue.
      * @param url - absolute request URL.
+     * @param signal - cancellation of the call, including the wait before a resend.
      * @returns the parsed body.
      */
-    get<T>(url: string): Promise<T>;
-    /** Resolve the cookie, wait for the next allowed slot, send, and parse. */
+    get<T>(url: string, signal?: AbortSignal): Promise<T>;
+    /**
+     * Serve one request, absorbing the throttling wait it named at most once. A request that fails
+     * again after the resend is reported, so a permanently refused URL cannot loop.
+     */
     private perform;
+    /** Wait for the next allowed slot, send, and classify the answer. */
+    private exchange;
+    /**
+     * Read the wait a failure asked for, when this client is allowed to absorb it.
+     * @param failure - the classified failure of the first attempt.
+     * @returns the wait in milliseconds, or `undefined` when the request must be reported instead.
+     */
+    private waitBeforeRetry;
     /** Report a 200 body that is not JSON: a challenge page is blocked, anything else is unusable. */
     private nonJsonBody;
     /** Read the cookie or fail with the login-required code; the message never contains it. */

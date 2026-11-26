@@ -81,29 +81,33 @@ export declare class ZhihuService extends Service {
     /**
      * List one feed page through the selected provider, capped to `request.limit`.
      * @param request - the feed kind, an optional item limit, and an optional continuation token.
+     * @param signal - cancellation of the call.
      * @returns the page, its entries truncated when the provider over-returns.
      */
-    feed(request: ZhihuFeedRequest): Promise<ZhihuFeedPage>;
+    feed(request: ZhihuFeedRequest, signal?: AbortSignal): Promise<ZhihuFeedPage>;
     /**
      * Read one question or answer through the selected provider. A question read returns its title
      * plus the text of one answer, because Zhihu's question-detail API is unavailable.
      * @param request - the content kind, its lossless id, and an optional answer count.
+     * @param signal - cancellation of the call.
      * @returns the read result with the body already converted to plain text.
      */
-    read(request: ZhihuReadRequest): Promise<ZhihuReadResult>;
+    read(request: ZhihuReadRequest, signal?: AbortSignal): Promise<ZhihuReadResult>;
     /**
      * Search Zhihu content through the selected provider, capped to `request.limit`.
      * @param request - the query, an optional hit limit, and an optional continuation token.
+     * @param signal - cancellation of the call.
      * @returns the page, its hits truncated when the provider over-returns.
      */
-    search(request: ZhihuSearchRequest): Promise<ZhihuSearchPage>;
+    search(request: ZhihuSearchRequest, signal?: AbortSignal): Promise<ZhihuSearchPage>;
     /**
      * List one slice of a content's root comments through the selected provider, capped to
      * `request.limit`.
      * @param request - the content kind and id, and an optional comment limit.
+     * @param signal - cancellation of the call.
      * @returns the comments read, truncated when the provider over-returns.
      */
-    comments(request: ZhihuCommentsRequest): Promise<ZhihuCommentsPage>;
+    comments(request: ZhihuCommentsRequest, signal?: AbortSignal): Promise<ZhihuCommentsPage>;
     /** Select the provider with the rules above, throwing the matching {@link ZhihuError}. */
     private selectProvider;
 }

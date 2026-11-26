@@ -105,9 +105,10 @@ export class ZhihuHttpProvider implements ZhihuProvider {
    * carry a continuation URL, so they are followed until `request.limit` is met or
    * `maxFeedPages` is spent.
    * @param request - the feed kind, an optional item limit, and an optional continuation token.
+   * @param signal - cancellation of the call.
    * @returns the page with promo entries dropped.
    */
-  async feed(request: ZhihuFeedRequest): Promise<ZhihuFeedPage> {
+  async feed(request: ZhihuFeedRequest, signal?: AbortSignal): Promise<ZhihuFeedPage> {
     const limit = request.limit ?? this.options.pageSize
     // A topic feed is the search endpoint's own order, so it continues from the search offset
     // rather than from a feed URL.
@@ -116,33 +117,35 @@ export class ZhihuHttpProvider implements ZhihuProvider {
         query: request.topic ?? '',
         limit,
         ...(request.cursor === undefined ? {} : { cursor: request.cursor }),
-      })
+      }, signal)
       return { items: page.items, ...(page.cursor === undefined ? {} : { cursor: page.cursor }) }
     }
     if (request.kind === 'hot') {
       const body = await this.options.transport.get<ZhihuListBody<ZhihuHotItem>>(
         `${API_ROOT}/api/v3/feed/topstory/hot-lists/total?limit=${limit}`,
+        signal,
       )
       return { items: (body.data ?? []).flatMap(item => hotItem(item)) }
     }
     const first = request.cursor ?? (request.kind === 'follow'
       ? `${API_ROOT}/api/v3/moments?desktop=true&limit=${limit}`
       : `${API_ROOT}/api/v3/feed/topstory/recommend?action=down&ad_interval=-1&desktop=true&limit=${limit}`)
-    return await this.pageFeed(first, limit)
+    return await this.pageFeed(first, limit, signal)
   }
 
   /**
    * Follow a feed's continuation URLs until the limit is met or the page budget is spent.
    * @param first - absolute URL of the first page to fetch.
    * @param limit - item cap for the returned page.
+   * @param signal - cancellation of the call.
    * @returns the collected items and the continuation token, when one remains.
    */
-  private async pageFeed(first: string, limit: number): Promise<ZhihuFeedPage> {
+  private async pageFeed(first: string, limit: number, signal: AbortSignal | undefined): Promise<ZhihuFeedPage> {
     const items: ZhihuFeedItem[] = []
     let next: string | undefined = first
     let following: string | undefined
     for (let pages = 0; next !== undefined && pages < this.options.maxFeedPages; pages += 1) {
-      const body = await this.options.transport.get<ZhihuListBody<ZhihuMomentItem | ZhihuRecommendItem>>(next)
+      const body = await this.options.transport.get<ZhihuListBody<ZhihuMomentItem | ZhihuRecommendItem>>(next, signal)
       items.push(...(body.data ?? []).flatMap(item => targetItem(item)))
       following = nextPageUrl(body.paging)
       if (items.length >= limit) break
@@ -156,13 +159,14 @@ export class ZhihuHttpProvider implements ZhihuProvider {
    * question-detail API is unavailable, so a question read goes through the answers list and takes
    * the question title from an included answer.
    * @param request - the content kind, its lossless id, an article's title, and an optional answer count.
+   * @param signal - cancellation of the call.
    * @returns the read result with plain text capped by `maxContentChars`.
    */
-  async read(request: ZhihuReadRequest): Promise<ZhihuReadResult> {
+  async read(request: ZhihuReadRequest, signal?: AbortSignal): Promise<ZhihuReadResult> {
     switch (request.kind) {
-      case 'question': return await this.readQuestion(request)
-      case 'answer': return await this.readAnswer(request)
-      case 'article': return await this.readArticle(request)
+      case 'question': return await this.readQuestion(request, signal)
+      case 'answer': return await this.readAnswer(request, signal)
+      case 'article': return await this.readArticle(request, signal)
     }
   }
 
@@ -172,22 +176,23 @@ export class ZhihuHttpProvider implements ZhihuProvider {
    * computed here from several pages of entries.
    * @param request - the query, an optional hit limit, an optional continuation token, and the
    *   order and time window the hits must satisfy.
+   * @param signal - cancellation of the call.
    * @returns one page of hits; an ordered or windowed search answers a slice with no token,
    *   because a continuation would interleave with the order it imposed.
    */
-  async search(request: ZhihuSearchRequest): Promise<ZhihuSearchPage> {
+  async search(request: ZhihuSearchRequest, signal?: AbortSignal): Promise<ZhihuSearchPage> {
     const limit = request.limit ?? this.options.pageSize
     const order = request.sort ?? 'relevance'
     const since = request.timeWindow === undefined ? undefined : nowSeconds() - TIME_WINDOW_SECONDS[request.timeWindow]
     if (order === 'relevance' && since === undefined) {
       const offset = searchOffset(request.cursor)
-      const entries = await this.searchEntries(request.query, limit, offset)
+      const entries = await this.searchEntries(request.query, limit, offset, signal)
       // A request spends its entry budget on promo cards too, so the next page starts past every
       // entry read rather than past every hit kept.
       const items = entries.flatMap(item => searchHit(item))
       return entries.length === 0 ? { items } : { items, cursor: String(offset + entries.length) }
     }
-    const entries = await this.scanSearch(request.query)
+    const entries = await this.scanSearch(request.query, signal)
     const kept = since === undefined ? entries : entries.filter(item => (createdOf(item) ?? 0) >= since)
     return { items: orderEntries(kept, order).flatMap(item => searchHit(item)).slice(0, limit) }
   }
@@ -198,15 +203,16 @@ export class ZhihuHttpProvider implements ZhihuProvider {
    * most, so a larger limit is filled from the continuation URLs it hands out; each page asks only
    * for what is still missing, which keeps every comment of a page it reads.
    * @param request - the content kind and id, and an optional comment limit.
+   * @param signal - cancellation of the call.
    * @returns the comments read, and the content's root-comment count when the payload carries one.
    */
-  async comments(request: ZhihuCommentsRequest): Promise<ZhihuCommentsPage> {
+  async comments(request: ZhihuCommentsRequest, signal?: AbortSignal): Promise<ZhihuCommentsPage> {
     const limit = request.limit ?? this.options.pageSize
     const items: ZhihuComment[] = []
     let next: string | undefined = commentUrl(request.kind, request.id, limit)
     let total: number | undefined
     for (let pages = 0; next !== undefined && pages < this.options.commentPages && items.length < limit; pages += 1) {
-      const body = await this.options.transport.get<ZhihuListBody<ZhihuCommentRow>>(next)
+      const body = await this.options.transport.get<ZhihuListBody<ZhihuCommentRow>>(next, signal)
       items.push(...(body.data ?? []).flatMap(row => commentItem(row)))
       total = body.paging?.totals ?? total
       next = nextPageUrl(body.paging)
@@ -220,12 +226,13 @@ export class ZhihuHttpProvider implements ZhihuProvider {
    * the single relevance-ordered page the endpoint answers, or it would have nothing to choose
    * from.
    * @param query - search text.
+   * @param signal - cancellation of the call.
    * @returns every entry read, promos included, in the order the endpoint answered.
    */
-  private async scanSearch(query: string): Promise<readonly ZhihuSearchItem[]> {
+  private async scanSearch(query: string, signal: AbortSignal | undefined): Promise<readonly ZhihuSearchItem[]> {
     const entries: ZhihuSearchItem[] = []
     for (let page = 0; page < this.options.searchScanPages; page += 1) {
-      const read = await this.searchEntries(query, this.options.pageSize, page * this.options.pageSize)
+      const read = await this.searchEntries(query, this.options.pageSize, page * this.options.pageSize, signal)
       entries.push(...read)
       if (read.length < this.options.pageSize) break
     }
@@ -239,11 +246,15 @@ export class ZhihuHttpProvider implements ZhihuProvider {
    * @param query - search text.
    * @param limit - entries requested.
    * @param offset - entries to skip; the endpoint pages by this alone.
+   * @param signal - cancellation of the call.
    * @returns the entries as they arrived, promos included.
    */
-  private async searchEntries(query: string, limit: number, offset = 0): Promise<readonly ZhihuSearchItem[]> {
+  private async searchEntries(
+    query: string, limit: number, offset = 0, signal?: AbortSignal,
+  ): Promise<readonly ZhihuSearchItem[]> {
     const body = await this.options.transport.get<ZhihuListBody<ZhihuSearchItem>>(
       `${API_ROOT}/api/v4/search_v3?t=general&q=${encodeURIComponent(query)}&limit=${limit}&offset=${offset}&correction=1`,
+      signal,
     )
     return body.data ?? []
   }
@@ -259,10 +270,11 @@ export class ZhihuHttpProvider implements ZhihuProvider {
     return { text: text.text, markdown: markdown.text, truncated: text.truncated || markdown.truncated }
   }
 
-  private async readQuestion(request: ZhihuReadRequest): Promise<ZhihuReadResult> {
+  private async readQuestion(request: ZhihuReadRequest, signal: AbortSignal | undefined): Promise<ZhihuReadResult> {
     const limit = request.answerLimit ?? this.options.answerLimit
     const body = await this.options.transport.get<ZhihuListBody<ZhihuAnswer>>(
       `${API_ROOT}/api/v4/questions/${request.id}/answers?include=content,excerpt,voteup_count,author.name,question.title&limit=${limit}&offset=0`,
+      signal,
     )
     const [answer] = body.data ?? []
     if (answer === undefined) {
@@ -282,9 +294,10 @@ export class ZhihuHttpProvider implements ZhihuProvider {
     }
   }
 
-  private async readAnswer(request: ZhihuReadRequest): Promise<ZhihuReadResult> {
+  private async readAnswer(request: ZhihuReadRequest, signal: AbortSignal | undefined): Promise<ZhihuReadResult> {
     const answer = await this.options.transport.get<ZhihuAnswer>(
       `${API_ROOT}/api/v4/answers/${request.id}?include=content,excerpt,voteup_count,author.name`,
+      signal,
     )
     const rendered = this.render(answer.content ?? answer.excerpt ?? '')
     return {
@@ -300,12 +313,12 @@ export class ZhihuHttpProvider implements ZhihuProvider {
     }
   }
 
-  private async readArticle(request: ZhihuReadRequest): Promise<ZhihuReadResult> {
+  private async readArticle(request: ZhihuReadRequest, signal: AbortSignal | undefined): Promise<ZhihuReadResult> {
     const title = request.title?.trim() ?? ''
     if (title.length === 0) {
       throw new ZhihuError(`article ${request.id} cannot be read without its title`, 'ZHIHU_BAD_RESPONSE')
     }
-    const entries = await this.searchEntries(title, this.options.pageSize)
+    const entries = await this.searchEntries(title, this.options.pageSize, 0, signal)
     const object = entries
       .flatMap(entry => entry.type === SEARCH_RESULT ? [entry.object] : [])
       .find(candidate => candidate?.id !== undefined && String(candidate.id) === request.id)

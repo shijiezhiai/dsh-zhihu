@@ -26,7 +26,14 @@ export interface ZhihuHttpClientOptions {
   readonly requestTimeoutMs: number
   /** Minimum spacing between two requests made by this client. */
   readonly minIntervalMs: number
+  /** Longest wait a throttled request absorbs before it is sent once more, in milliseconds; 0 never resends. */
+  readonly retryCeilingMs: number
 }
+
+/** One send: either the parsed body, or the classified failure that ended it. */
+type ZhihuAttempt<T> =
+  | { readonly ok: true; readonly body: T }
+  | { readonly ok: false; readonly failure: ZhihuError }
 
 /** Body of a Zhihu failure response. */
 interface ZhihuFailureBody {
@@ -47,26 +54,56 @@ export class ZhihuHttpClient implements ZhihuTransport {
   /**
    * Perform one GET through the serial queue.
    * @param url - absolute request URL.
+   * @param signal - cancellation of the call, including the wait before a resend.
    * @returns the parsed body.
    */
-  async get<T>(url: string): Promise<T> {
-    const result = this.tail.then(async () => await this.perform<T>(url))
+  async get<T>(url: string, signal?: AbortSignal): Promise<T> {
+    const result = this.tail.then(async () => await this.perform<T>(url, signal))
     this.tail = result.then(() => undefined, () => undefined)
     return await result
   }
 
-  /** Resolve the cookie, wait for the next allowed slot, send, and parse. */
-  private async perform<T>(url: string): Promise<T> {
+  /**
+   * Serve one request, absorbing the throttling wait it named at most once. A request that fails
+   * again after the resend is reported, so a permanently refused URL cannot loop.
+   */
+  private async perform<T>(url: string, signal: AbortSignal | undefined): Promise<T> {
     const cookie = await this.requireCookie()
+    const first = await this.exchange<T>(url, cookie, signal)
+    if (first.ok) return first.body
+    const wait = this.waitBeforeRetry(first.failure)
+    if (wait === undefined) throw first.failure
+    await sleepUnlessAborted(this.options.clock, wait, signal)
+    const second = await this.exchange<T>(url, cookie, signal)
+    if (second.ok) return second.body
+    throw second.failure
+  }
+
+  /** Wait for the next allowed slot, send, and classify the answer. */
+  private async exchange<T>(url: string, cookie: string, signal: AbortSignal | undefined): Promise<ZhihuAttempt<T>> {
     await this.waitForSlot()
-    const response = await this.send(url, cookie)
+    const response = await this.send(url, cookie, signal)
     const text = await response.text()
-    if (!response.ok) throw this.failure(response.status, text, response.headers.get('retry-after'), cookie)
+    if (!response.ok) {
+      return { ok: false, failure: this.failure(response.status, text, response.headers.get('retry-after'), cookie) }
+    }
     try {
-      return parseLosslessJson(text) as T
+      return { ok: true, body: parseLosslessJson(text) as T }
     } catch (cause) {
       throw this.nonJsonBody(text, cookie, cause)
     }
+  }
+
+  /**
+   * Read the wait a failure asked for, when this client is allowed to absorb it.
+   * @param failure - the classified failure of the first attempt.
+   * @returns the wait in milliseconds, or `undefined` when the request must be reported instead.
+   */
+  private waitBeforeRetry(failure: ZhihuError): number | undefined {
+    const seconds = failure.retryAfterSeconds
+    if (seconds === undefined || this.options.retryCeilingMs === 0) return undefined
+    const wait = seconds * 1_000
+    return wait <= this.options.retryCeilingMs ? wait : undefined
   }
 
   /** Report a 200 body that is not JSON: a challenge page is blocked, anything else is unusable. */
@@ -102,7 +139,7 @@ export class ZhihuHttpClient implements ZhihuTransport {
    * Send one GET. `redirect: 'error'` makes fetch reject instead of following a redirect, so a
    * redirected credential-bearing request never reaches a second host (packages/web/AGENTS.md).
    */
-  private async send(url: string, cookie: string): Promise<Response> {
+  private async send(url: string, cookie: string, signal: AbortSignal | undefined): Promise<Response> {
     try {
       return await fetch(url, {
         method: 'GET',
@@ -113,7 +150,7 @@ export class ZhihuHttpClient implements ZhihuTransport {
           'cookie': cookie,
         },
         redirect: 'error',
-        signal: AbortSignal.timeout(this.options.requestTimeoutMs),
+        signal: combinedSignal(signal, AbortSignal.timeout(this.options.requestTimeoutMs)),
       })
     } catch (cause) {
       throw new ZhihuError(`Zhihu request failed before a response arrived (${cookieDiagnostics(cookie)})`, 'ZHIHU_BAD_RESPONSE', { cause })
@@ -135,6 +172,40 @@ export class ZhihuHttpClient implements ZhihuTransport {
       zhihuErrorCode(kind),
       seconds === undefined ? undefined : { retryAfterSeconds: seconds },
     )
+  }
+}
+
+/**
+ * Tie a request's own timeout to the caller's cancellation.
+ * @param signal - the caller's cancellation, when it passes one.
+ * @param timeout - the request's own deadline.
+ * @returns a signal that aborts when either one does.
+ */
+function combinedSignal(signal: AbortSignal | undefined, timeout: AbortSignal): AbortSignal {
+  return signal === undefined ? timeout : AbortSignal.any([signal, timeout])
+}
+
+/**
+ * Wait against the client's clock, giving the wait up the moment the caller cancels.
+ * @param clock - time source; tests inject one that resolves without waiting.
+ * @param ms - the wait in milliseconds; a non-positive value resolves immediately.
+ * @param signal - the caller's cancellation, when it passes one.
+ * @throws the signal's reason when it aborts before the wait elapses.
+ */
+async function sleepUnlessAborted(clock: ZhihuClock, ms: number, signal: AbortSignal | undefined): Promise<void> {
+  if (ms <= 0) return
+  if (signal === undefined) {
+    await clock.sleep(ms)
+    return
+  }
+  signal.throwIfAborted()
+  const aborted = Promise.withResolvers<never>()
+  const onAbort = (): void => { aborted.reject(signal.reason) }
+  signal.addEventListener('abort', onAbort, { once: true })
+  try {
+    await Promise.race([clock.sleep(ms), aborted.promise])
+  } finally {
+    signal.removeEventListener('abort', onAbort)
   }
 }
 
