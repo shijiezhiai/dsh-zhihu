@@ -27,6 +27,7 @@ import { zhihuRowKey } from './zhihu-row-key.ts'
 import { zhihuPanelFailureLine } from './zhihu-panel-failure.ts'
 import {
   collectQuote,
+  QUOTE_MAX_CHARS,
   readPassage,
   segmentsText,
   toggleSegment,
@@ -451,6 +452,8 @@ export function ZhihuPage(
   const [surface, setSurface] = useState<DetailSurface>('body')
   /** The passage the reader pointed at, while its bubble is up. */
   const [quote, setQuote] = useState<ZhihuQuote | undefined>(undefined)
+  /** Longest passage this deployment quotes; the Remote's answer replaces the built-in cap. */
+  const [quoteLimit, setQuoteLimit] = useState(QUOTE_MAX_CHARS)
   // A state persisted before comparisons existed restores without them, so the bar starts empty.
   const comparison = useStore(state => state.comparison) ?? EMPTY_COMPARISON
   const [chat, setChat] = useState<{ status: 'idle' | 'opening' | 'ready' | 'failed'; seat?: ZhihuDiscussion; reason?: string }>({ status: 'idle' })
@@ -583,6 +586,15 @@ export function ZhihuPage(
     setChat({ status: 'idle' })
     release()
   }, [actions, chat, opened, release])
+
+  // The deployment's passage cap arrives with the first Remote answer; a page that closes first drops it.
+  useEffect(() => {
+    let live = true
+    void face.settings().then((settings) => {
+      if (live && settings !== undefined) setQuoteLimit(settings.quoteMaxChars)
+    })
+    return () => { live = false }
+  }, [face])
 
   // A panel that closes mid-discussion still lets go of its Session reference.
   useEffect(() => release, [release])
@@ -719,14 +731,14 @@ export function ZhihuPage(
    * @param target - the element the gesture landed on.
    */
   const quoteAt = useCallback((target: EventTarget | null): void => {
-    const next = readPassage(target)
+    const next = readPassage(target, quoteLimit)
     if (next === undefined) return
     setQuote((current) => {
       const segments = toggleSegment(current?.segments ?? [], next.text)
       if (segments.length === 0) return undefined
-      return { segments, text: segmentsText(segments), left: next.left, top: next.top, width: next.width }
+      return { segments, text: segmentsText(segments, quoteLimit), left: next.left, top: next.top, width: next.width }
     })
-  }, [])
+  }, [quoteLimit])
 
   /**
    * File the open row, with the sections the reader asked to carry beyond its body.

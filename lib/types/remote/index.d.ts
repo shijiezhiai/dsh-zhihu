@@ -2,7 +2,7 @@
 import { Context } from '@deepseek-ai/cordis';
 import z from '@deepseek-ai/schemastery';
 import { TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol';
-import type { ZhihuExportQuery, ZhihuExportResult, ZhihuFeedQuery, ZhihuFeedResult, ZhihuReadItem, ZhihuReadQuery, ZhihuSearchQuery, ZhihuSearchResult } from './types.ts';
+import type { ZhihuClientSettings, ZhihuExportQuery, ZhihuExportResult, ZhihuFeedQuery, ZhihuFeedResult, ZhihuReadItem, ZhihuReadQuery, ZhihuSearchQuery, ZhihuSearchResult } from './types.ts';
 export type * from './types.ts';
 declare module '@deepseek-ai/cordis' {
     interface Context {
@@ -16,6 +16,8 @@ export interface Config {
     readonly defaultLimit: number;
     /** Hard cap applied to every requested limit. */
     readonly maxLimit: number;
+    /** Longest passage one quoted instruction carries, in characters. */
+    readonly quoteMaxChars: number;
     /** Base URL of the Obsidian Local REST API that receives captured notes. */
     readonly obsidianUrl: string;
     /** Vault folder that receives captured notes; empty writes to the vault root. */
@@ -29,6 +31,11 @@ export default class ZhihuController extends TypertRemoteService {
     static inject: string[];
     static Config: z<Config>;
     constructor(ctx: Context, config: Config);
+    /**
+     * Report the deployment settings the browser half applies.
+     * @returns the passage cap this deployment sets.
+     */
+    settings(): Promise<ZhihuClientSettings>;
     /**
      * Read one bounded feed page from the selected provider.
      * @param request - feed kind and an optional item limit.

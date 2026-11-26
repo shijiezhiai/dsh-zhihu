@@ -2,6 +2,12 @@
 
 Every tag publishes the prebuilt tarball the plugin-market entry installs, at `https://github.com/shijiezhiai/dsh-zhihu/releases/download/v<version>/dsh-zhihu.tgz`; the asset name stays `dsh-zhihu.tgz`, so a version is identified by its URL.
 
+## 1.10.0
+
+### Added
+
+- `remote.quoteMaxChars` (default 1200) sets how long a passage one quoted instruction carries. The page reads the cap from the Remote when it opens and quotes with the built-in 1200 only when the Host publishes no namespace, so a deployment that takes longer selections raises the cap without rebuilding the client.
+
 ## 1.9.2
 
 ### Added

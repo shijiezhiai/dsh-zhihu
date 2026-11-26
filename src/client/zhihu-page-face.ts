@@ -11,8 +11,8 @@ import type { RemoteFailure } from '@deepseek-ai/dsh-api-remotes/client'
 // Type-only: pulls the generated 'zhihu' TypertRemoteNamespaceMap merge.
 import type {} from '@deepseek-ai/dsh-zhihu-plugin/remote'
 import type {
-  ZhihuExportQuery, ZhihuExportResult, ZhihuFailureTarget, ZhihuFeedQuery, ZhihuFeedResult, ZhihuFeedRow,
-  ZhihuReadItem, ZhihuSearchQuery,
+  ZhihuClientSettings, ZhihuExportQuery, ZhihuExportResult, ZhihuFailureTarget, ZhihuFeedQuery,
+  ZhihuFeedResult, ZhihuFeedRow, ZhihuReadItem, ZhihuSearchQuery,
 } from '@deepseek-ai/dsh-zhihu-plugin/types'
 import { RemoteError } from '@deepseek-ai/dsh-typert-protocol'
 
@@ -53,6 +53,12 @@ export interface ZhihuPageFace {
    * @returns the content, or the refusal.
    */
   read(row: ZhihuFeedRow): Promise<ZhihuPageOutcome<ZhihuReadItem>>
+  /**
+   * Read the deployment settings this page applies. A Client whose Host publishes no namespace, or
+   * a refused call, leaves the page on its own cap, so this reports no failure of its own.
+   * @returns the settings, or undefined when the answer is unavailable.
+   */
+  settings(): Promise<ZhihuClientSettings | undefined>
   /**
    * Write the open row into the reader's Obsidian vault.
    * @param query - the capture to write; the reader supplies the body it already holds.
@@ -102,6 +108,12 @@ export function zhihuPageFace(resolveRemote: () => ClientRemote['zhihu'] | undef
       if (remote === undefined) return unavailable(row.kind)
       const result = await remote.read({ kind: row.kind, id: row.id, title: row.title })
       return result.ok ? { ok: true, value: result.value } : { ok: false, failure: result.error }
+    },
+    async settings() {
+      const remote = resolveRemote()
+      if (remote === undefined) return undefined
+      const result = await remote.settings()
+      return result.ok ? result.value : undefined
     },
     async export(query) {
       const remote = resolveRemote()

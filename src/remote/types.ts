@@ -59,6 +59,12 @@ export interface ZhihuFeedResult {
   readonly cursor?: string
 }
 
+/** Deployment settings the browser half reads once, before it quotes anything. */
+export interface ZhihuClientSettings {
+  /** Longest passage one quoted instruction carries, in characters. */
+  readonly quoteMaxChars: number
+}
+
 /** One search request; the Host applies its own default and cap to `limit`. */
 export interface ZhihuSearchQuery {
   /** Query text Zhihu matches against questions, answers and articles. */

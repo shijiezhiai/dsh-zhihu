@@ -9,7 +9,10 @@
  */
 import type { ZhihuFeedRow } from '@deepseek-ai/dsh-zhihu-plugin/types';
 import type { ZhihuTranslate } from './ZhihuContent.tsx';
-/** The longest passage one instruction carries; the full body stays one `zhihu_read` away. */
+/**
+ * The longest passage one instruction carries before the deployment answers: a page reads its
+ * configured cap from the Remote, and this is what it quotes with until that answer arrives.
+ */
 export declare const QUOTE_MAX_CHARS = 1200;
 /** One passage the reader pointed at, placed in viewport pixels. */
 export interface ZhihuPassage {
@@ -49,9 +52,10 @@ export declare function toggleSegment(segments: readonly string[], text: string)
 /**
  * Join the passages one instruction quotes into the text it carries.
  * @param segments - the passages quoted, in the order they were pointed at.
+ * @param maxChars - longest passage this deployment quotes.
  * @returns the passages separated by a blank line, capped as a whole.
  */
-export declare function segmentsText(segments: readonly string[]): string;
+export declare function segmentsText(segments: readonly string[], maxChars: number): string;
 /** Passages a comparison holds, grouped by the item they were read in. */
 export interface ZhihuQuoteSource {
     /** The row the passages came from. */
@@ -83,9 +87,10 @@ export declare function placePassage(rect: QuoteRect, area: QuoteViewport): {
  * Read the passage the reader just pointed at: the text they selected, or the
  * block they clicked when nothing is selected.
  * @param target - the element the gesture landed on.
+ * @param maxChars - longest passage this deployment quotes.
  * @returns the passage and where its bubble goes, or undefined when the gesture named no text.
  */
-export declare function readPassage(target: EventTarget | null): ZhihuPassage | undefined;
+export declare function readPassage(target: EventTarget | null, maxChars: number): ZhihuPassage | undefined;
 /**
  * Ask about one passage, quoting it so the model can find it in the body.
  * @param t - copy of the Zhihu namespace.

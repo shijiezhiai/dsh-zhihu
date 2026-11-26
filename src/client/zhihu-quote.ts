@@ -11,7 +11,10 @@ import type { ZhihuFeedRow } from '@deepseek-ai/dsh-zhihu-plugin/types'
 import type { ZhihuTranslate } from './ZhihuContent.tsx'
 import { zhihuRowKey } from './zhihu-row-key.ts'
 
-/** The longest passage one instruction carries; the full body stays one `zhihu_read` away. */
+/**
+ * The longest passage one instruction carries before the deployment answers: a page reads its
+ * configured cap from the Remote, and this is what it quotes with until that answer arrives.
+ */
 export const QUOTE_MAX_CHARS = 1200
 
 /** Blocks a click without a selection can quote whole. */
@@ -57,20 +60,22 @@ export interface QuoteViewport {
 /**
  * Hold a passage to what one instruction carries, marking where it was cut.
  * @param text - the collapsed passage.
+ * @param maxChars - longest passage this deployment quotes.
  * @returns the passage as the instruction quotes it.
  */
-function cap(text: string): string {
-  return text.length > QUOTE_MAX_CHARS ? text.slice(0, QUOTE_MAX_CHARS) + '…' : text
+function cap(text: string, maxChars: number): string {
+  return text.length > maxChars ? text.slice(0, maxChars) + '…' : text
 }
 
 /**
  * Collapse a passage for one instruction, keeping its paragraph breaks.
  * @param text - raw text from the selection or the clicked block.
+ * @param maxChars - longest passage this deployment quotes.
  * @returns the carried text, or undefined when the gesture named no text.
  */
-function passageText(text: string): string | undefined {
+function passageText(text: string, maxChars: number): string | undefined {
   const collapsed = text.replace(/[ \t]+/gu, ' ').replace(/\n{3,}/gu, '\n\n').trim()
-  return collapsed === '' ? undefined : cap(collapsed)
+  return collapsed === '' ? undefined : cap(collapsed, maxChars)
 }
 
 /**
@@ -86,10 +91,11 @@ export function toggleSegment(segments: readonly string[], text: string): readon
 /**
  * Join the passages one instruction quotes into the text it carries.
  * @param segments - the passages quoted, in the order they were pointed at.
+ * @param maxChars - longest passage this deployment quotes.
  * @returns the passages separated by a blank line, capped as a whole.
  */
-export function segmentsText(segments: readonly string[]): string {
-  return cap(segments.join('\n\n'))
+export function segmentsText(segments: readonly string[], maxChars: number): string {
+  return cap(segments.join('\n\n'), maxChars)
 }
 
 /** Passages a comparison holds, grouped by the item they were read in. */
@@ -173,19 +179,20 @@ function areaOf(target: EventTarget | null): QuoteViewport {
  * Read the passage the reader just pointed at: the text they selected, or the
  * block they clicked when nothing is selected.
  * @param target - the element the gesture landed on.
+ * @param maxChars - longest passage this deployment quotes.
  * @returns the passage and where its bubble goes, or undefined when the gesture named no text.
  */
-export function readPassage(target: EventTarget | null): ZhihuPassage | undefined {
+export function readPassage(target: EventTarget | null, maxChars: number): ZhihuPassage | undefined {
   const area = areaOf(target)
   const selection = window.getSelection()
   if (selection !== null && !selection.isCollapsed && selection.rangeCount > 0) {
-    const text = passageText(selection.toString())
+    const text = passageText(selection.toString(), maxChars)
     if (text === undefined) return undefined
     return { text, ...placePassage(selection.getRangeAt(0).getBoundingClientRect(), area) }
   }
   const block = target instanceof Element ? target.closest(BLOCK_SELECTOR) : null
   if (block === null) return undefined
-  const text = passageText(blockText(block))
+  const text = passageText(blockText(block), maxChars)
   if (text === undefined) return undefined
   return { text, ...placePassage(block.getBoundingClientRect(), area) }
 }

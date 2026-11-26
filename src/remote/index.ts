@@ -6,8 +6,9 @@ import { ZhihuError } from '../service/index.ts'
 import type { ZhihuErrorCode, ZhihuFeedRequest, ZhihuReadRequest } from '../service/index.ts'
 import { credentialRef } from '@deepseek-ai/dsh-credentials'
 import type {
-  ZhihuExportQuery, ZhihuExportResult, ZhihuFailureTarget, ZhihuFeedQuery, ZhihuFeedResult,
-  ZhihuReadItem, ZhihuReadQuery, ZhihuRemoteFailureCode, ZhihuSearchQuery, ZhihuSearchResult,
+  ZhihuClientSettings, ZhihuExportQuery, ZhihuExportResult, ZhihuFailureTarget, ZhihuFeedQuery,
+  ZhihuFeedResult, ZhihuReadItem, ZhihuReadQuery, ZhihuRemoteFailureCode, ZhihuSearchQuery,
+  ZhihuSearchResult,
 } from './types.ts'
 import { fileCapture, noteName, notePath, ObsidianError } from './obsidian.ts'
 
@@ -26,6 +27,8 @@ export interface Config {
   readonly defaultLimit: number
   /** Hard cap applied to every requested limit. */
   readonly maxLimit: number
+  /** Longest passage one quoted instruction carries, in characters. */
+  readonly quoteMaxChars: number
   /** Base URL of the Obsidian Local REST API that receives captured notes. */
   readonly obsidianUrl: string
   /** Vault folder that receives captured notes; empty writes to the vault root. */
@@ -90,6 +93,7 @@ export default class ZhihuController extends TypertRemoteService {
   static Config: z<Config> = z.object({
     defaultLimit: z.natural().min(1).default(20),
     maxLimit: z.natural().min(1).default(50),
+    quoteMaxChars: z.natural().min(1).default(1200),
     obsidianUrl: z.string().default('https://127.0.0.1:27124'),
     obsidianFolder: z.string().default('zhihu'),
     obsidianCredential: z.string().default('OBSIDIAN_API_KEY'),
@@ -97,6 +101,15 @@ export default class ZhihuController extends TypertRemoteService {
 
   constructor(ctx: Context, private readonly config: Config) {
     super(ctx, 'zhihuController', { namespace: 'zhihu' })
+  }
+
+  /**
+   * Report the deployment settings the browser half applies.
+   * @returns the passage cap this deployment sets.
+   */
+  @Remote
+  settings(): Promise<ZhihuClientSettings> {
+    return Promise.resolve({ quoteMaxChars: this.config.quoteMaxChars })
   }
 
   /**

@@ -4,7 +4,7 @@ import type {
   TypertRemoteInfo,
   TypertRemoteMethod,
 } from '@deepseek-ai/dsh-typert-protocol'
-import type { ZhihuExportQuery, ZhihuExportResult, ZhihuFeedQuery, ZhihuFeedResult, ZhihuReadItem, ZhihuReadQuery, ZhihuSearchQuery, ZhihuSearchResult } from '@mayangyang/dsh-zhihu/types'
+import type { ZhihuClientSettings, ZhihuExportQuery, ZhihuExportResult, ZhihuFeedQuery, ZhihuFeedResult, ZhihuReadItem, ZhihuReadQuery, ZhihuSearchQuery, ZhihuSearchResult } from '@mayangyang/dsh-zhihu/types'
 
 declare module '@deepseek-ai/dsh-typert-protocol' {
   interface TypertRemoteNamespace$7a68696875 {
@@ -12,12 +12,14 @@ declare module '@deepseek-ai/dsh-typert-protocol' {
     feed: (request: ZhihuFeedQuery) => Promise<RemoteResult<ZhihuFeedResult>>
     read: (request: ZhihuReadQuery) => Promise<RemoteResult<ZhihuReadItem>>
     search: (request: ZhihuSearchQuery) => Promise<RemoteResult<ZhihuSearchResult>>
+    settings: () => Promise<RemoteResult<ZhihuClientSettings>>
   }
   interface TypertRemoteMap {
     'zhihu/export': (request: ZhihuExportQuery) => Promise<RemoteResult<ZhihuExportResult>>
     'zhihu/feed': (request: ZhihuFeedQuery) => Promise<RemoteResult<ZhihuFeedResult>>
     'zhihu/read': (request: ZhihuReadQuery) => Promise<RemoteResult<ZhihuReadItem>>
     'zhihu/search': (request: ZhihuSearchQuery) => Promise<RemoteResult<ZhihuSearchResult>>
+    'zhihu/settings': () => Promise<RemoteResult<ZhihuClientSettings>>
   }
   interface TypertRemoteNamespaceMap {
     'zhihu': TypertRemoteNamespace$7a68696875
@@ -29,6 +31,7 @@ export declare const TYPERT_REMOTE: TypertRemoteInfo<{
   readonly 'zhihu/feed': TypertRemoteMethod<{ readonly 'request': ZhihuFeedQuery }, ZhihuFeedResult>
   readonly 'zhihu/read': TypertRemoteMethod<{ readonly 'request': ZhihuReadQuery }, ZhihuReadItem>
   readonly 'zhihu/search': TypertRemoteMethod<{ readonly 'request': ZhihuSearchQuery }, ZhihuSearchResult>
+  readonly 'zhihu/settings': TypertRemoteMethod<{  }, ZhihuClientSettings>
 }>
 export default TYPERT_REMOTE
 //# sourceMappingURL=typert.remote-client.d.ts.map

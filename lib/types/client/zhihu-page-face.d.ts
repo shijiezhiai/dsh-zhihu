@@ -8,7 +8,7 @@
  */
 import type { ClientRemote } from '@deepseek-ai/dsh-api-gateway/client';
 import type { RemoteFailure } from '@deepseek-ai/dsh-api-remotes/client';
-import type { ZhihuExportQuery, ZhihuExportResult, ZhihuFeedQuery, ZhihuFeedResult, ZhihuFeedRow, ZhihuReadItem } from '@deepseek-ai/dsh-zhihu-plugin/types';
+import type { ZhihuClientSettings, ZhihuExportQuery, ZhihuExportResult, ZhihuFeedQuery, ZhihuFeedResult, ZhihuFeedRow, ZhihuReadItem } from '@deepseek-ai/dsh-zhihu-plugin/types';
 /** Either a returned value or the Remote failure that refused it. */
 export type ZhihuPageOutcome<T> = {
     readonly ok: true;
@@ -40,6 +40,12 @@ export interface ZhihuPageFace {
      * @returns the content, or the refusal.
      */
     read(row: ZhihuFeedRow): Promise<ZhihuPageOutcome<ZhihuReadItem>>;
+    /**
+     * Read the deployment settings this page applies. A Client whose Host publishes no namespace, or
+     * a refused call, leaves the page on its own cap, so this reports no failure of its own.
+     * @returns the settings, or undefined when the answer is unavailable.
+     */
+    settings(): Promise<ZhihuClientSettings | undefined>;
     /**
      * Write the open row into the reader's Obsidian vault.
      * @param query - the capture to write; the reader supplies the body it already holds.

@@ -65,6 +65,7 @@ Every setting has a default and is validated at load:
 | `tool.timeoutMs` | `30000` | One tool call's deadline |
 | `remote.defaultLimit` | `20` | Rows a panel request returns |
 | `remote.maxLimit` | `50` | Largest limit the Remote accepts |
+| `remote.quoteMaxChars` | `1200` | Longest passage a quoted instruction carries |
 | `remote.obsidianUrl` | `https://127.0.0.1:27124` | Obsidian REST endpoint |
 | `remote.obsidianFolder` | `zhihu` | Vault folder that notes land in |
 | `remote.obsidianCredential` | `OBSIDIAN_API_KEY` | Credential ref holding the Obsidian key |
@@ -181,7 +182,7 @@ Same as the other tools: the declaration never moves, and each call appends its 
 - A discussion keeps one Session per item in the page's persisted state, and the My discussions list is that same record. Clearing site data forgets the mapping and empties the list, and the next instruction opens a new Session instead of resuming the old one.
 - A keyword lane lists what Zhihu's search finds for that keyword, so it carries that endpoint's single relevance order and no date filter; the keyword itself lives in the same browser storage as the rest of the reading state.
 - Rank marks and the follow lane's new count both compare a lane against the rows that lane last listed, and both live in the same browser storage: clearing site data resets them, and a lane read for the first time counts and marks nothing because it has nothing to compare against.
-- A passage question quotes the reader's rendered text, which is not the `contentText` the model reads, so a quote is capped at 1200 characters and a longer selection is cut.
+- A passage question quotes the reader's rendered text, which is not the `contentText` the model reads, so a quote is capped at `remote.quoteMaxChars` characters and a longer selection is cut. The page reads that cap from the Remote once when it opens, so a Client whose Host publishes no namespace quotes with the built-in 1200.
 - A passage filed on its own reads the note first and appends one section, so the vault has to serve that note back; a vault that refuses the read reports the refusal and writes nothing. Filing the same passage twice writes nothing the second time, while the same words selected elsewhere in the item append a second section under the same heading.
 - An export files the discussion only while that item's Discussion segment is open in the panel; a discussion resumed later is not read back for the note.
 - The comments endpoint answers at most ten root comments per page in Zhihu's own hotness order, so a call answers one slice of a thread and a larger limit reads further instead of paging back; a challenge page surfaces as `ZHIHU_BLOCKED` rather than as an empty thread.
