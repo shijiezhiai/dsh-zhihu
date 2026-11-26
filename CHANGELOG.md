@@ -2,6 +2,12 @@
 
 Every tag publishes the prebuilt tarball the plugin-market entry installs, at `https://github.com/shijiezhiai/dsh-zhihu/releases/download/v<version>/dsh-zhihu.tgz`; the asset name stays `dsh-zhihu.tgz`, so a version is identified by its URL.
 
+## 1.13.0
+
+### Added
+
+- Every submitted search opens its own tab beside the earlier ones, so a second search no longer replaces the hits of the first. A tab the reader already has reopens with its stored hits and asks Zhihu for nothing, a repeated query reuses its tab instead of adding a second, and closing a tab steps to the one beside it. The page keeps eight tabs and drops the oldest beyond that, all of them stored with the rest of the reading state.
+
 ## 1.12.0
 
 ### Added

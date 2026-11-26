@@ -27,6 +27,17 @@ export interface ZhihuPageLane {
   cursor: string
 }
 
+/** One search the page keeps open, with the hits that answered it. */
+export interface ZhihuSearchTab {
+  /** The text that produced the hits, which also names the tab. */
+  readonly query: string
+  /** The hits as this search left them. */
+  readonly lane: ZhihuPageLane
+}
+
+/** How many searches the page keeps, so a long reading session does not grow the stored state. */
+export const ZHIHU_SEARCH_TABS = 8
+
 /** How one row moved when its lane was read, measured against that lane's previous read. */
 export type ZhihuRankMove =
   | { readonly kind: 'new' }
@@ -92,8 +103,20 @@ export interface ZhihuPageState {
    * without one, so readers go through {@link zhihuLane}.
    */
   feeds: Partial<Record<ZhihuFeedTab, ZhihuPageLane>>
-  /** The loaded content of the search lane. */
-  search: ZhihuPageLane
+  /**
+   * The searches the page keeps, oldest first, so a second search adds a tab instead of replacing
+   * the hits of the first.
+   * A state persisted before search tabs existed restores without the field, so readers go through
+   * {@link zhihuSearches}.
+   */
+  searches?: readonly ZhihuSearchTab[]
+  /** The search whose hits are on screen; absent when the reader ran none. */
+  activeSearch?: string
+  /**
+   * The one search lane of a state persisted before search tabs existed.
+   * Read it through {@link zhihuSearches}, which folds it into its own tab.
+   */
+  search?: ZhihuPageLane
   /** Vertical offset of the list, so a reopened page resumes where the reader left it. */
   scrollTop: number
   /**
@@ -142,19 +165,51 @@ export type ZhihuPageActions = {
    */
   topicTyped(draft: ZhihuPageState, topic: string): void
   /**
-   * Replace one lane with a first page.
+   * Open a search tab, or the one a repeated query already named, and show it.
+   * @param draft - the current state.
+   * @param query - the text the reader submitted.
+   */
+  searchOpened(draft: ZhihuPageState, query: string): void
+  /**
+   * Show one search tab the reader already has.
+   * @param draft - the current state.
+   * @param query - the search to show.
+   */
+  searchShown(draft: ZhihuPageState, query: string): void
+  /**
+   * Close one search tab, moving to a neighbour when the closed one was on screen.
+   * @param draft - the current state.
+   * @param query - the search to drop.
+   */
+  searchClosed(draft: ZhihuPageState, query: string): void
+  /**
+   * Replace one feed lane with a first page.
    * @param draft - the current state.
    * @param tab - the lane that answered.
    * @param lane - the rows and continuation of that page.
    */
-  loaded(draft: ZhihuPageState, tab: ZhihuPageTab, lane: ZhihuPageLane): void
+  loaded(draft: ZhihuPageState, tab: ZhihuFeedTab, lane: ZhihuPageLane): void
   /**
-   * Extend one lane with a continuation page.
+   * Extend one feed lane with a continuation page.
    * @param draft - the current state.
    * @param tab - the lane that answered.
    * @param lane - the rows of the continuation and the token that follows them.
    */
-  appended(draft: ZhihuPageState, tab: ZhihuPageTab, lane: ZhihuPageLane): void
+  appended(draft: ZhihuPageState, tab: ZhihuFeedTab, lane: ZhihuPageLane): void
+  /**
+   * Replace one search tab's hits with a first page.
+   * @param draft - the current state.
+   * @param query - the search that answered.
+   * @param lane - the rows and continuation of that page.
+   */
+  searchLoaded(draft: ZhihuPageState, query: string, lane: ZhihuPageLane): void
+  /**
+   * Extend one search tab with a continuation page.
+   * @param draft - the current state.
+   * @param query - the search that answered.
+   * @param lane - the rows of the continuation and the token that follows them.
+   */
+  searchAppended(draft: ZhihuPageState, query: string, lane: ZhihuPageLane): void
   /**
    * Record where the list was left.
    * @param draft - the current state.
@@ -214,6 +269,32 @@ export function zhihuLane(state: ZhihuPageState, tab: ZhihuFeedTab): ZhihuPageLa
 }
 
 /**
+ * Read the searches a stored page keeps from the fields that carry them.
+ * @param searches - the tabs a state persisted with search tabs carries.
+ * @param legacy - the single search lane of a state persisted before tabs existed.
+ * @param query - the text that lane was run with.
+ * @returns the tabs, oldest first; a lane that never answered keeps no tab at all.
+ */
+export function zhihuSearchTabs(
+  searches: readonly ZhihuSearchTab[] | undefined,
+  legacy: ZhihuPageLane | undefined,
+  query: string,
+): readonly ZhihuSearchTab[] {
+  if (searches !== undefined) return searches
+  if (legacy === undefined || legacy.rows.length === 0) return []
+  return [{ query, lane: legacy }]
+}
+
+/**
+ * Read the searches one page state keeps.
+ * @param state - the page state.
+ * @returns the tabs, oldest first, folding a state persisted before tabs existed into one.
+ */
+export function zhihuSearches(state: ZhihuPageState): readonly ZhihuSearchTab[] {
+  return zhihuSearchTabs(state.searches, state.search, state.query)
+}
+
+/**
  * Mark how the rows of a first page moved against the rows the lane listed before it.
  * @param previous - the rows the lane held before this read, in their order; empty when nothing
  * was read yet, which leaves nothing to compare against.
@@ -238,14 +319,13 @@ function rankLane(
 }
 
 /**
- * Write one lane's content into its bucket.
+ * Write one feed lane's content into its bucket.
  * @param state - the state to write.
- * @param tab - the lane to write, or `search`.
+ * @param tab - the lane to write.
  * @param lane - the content replacing that lane.
  */
-function writeLane(state: ZhihuPageState, tab: ZhihuPageTab, lane: ZhihuPageLane): void {
-  if (tab === 'search') state.search = lane
-  else state.feeds[tab] = lane
+function writeLane(state: ZhihuPageState, tab: ZhihuFeedTab, lane: ZhihuPageLane): void {
+  state.feeds[tab] = lane
 }
 
 /**
@@ -259,7 +339,7 @@ export function createZhihuPageStore(): ZhihuPageStore {
       query: '',
       topic: '',
       feeds: { recommend: emptyLane(), hot: emptyLane(), follow: emptyLane(), topic: emptyLane() },
-      search: emptyLane(),
+      searches: [],
       scrollTop: 0,
       density: 'comfortable',
       discussions: {},
@@ -270,16 +350,53 @@ export function createZhihuPageStore(): ZhihuPageStore {
       show: (draft, tab) => { draft.tab = tab },
       typed: (draft, query) => { draft.query = query },
       topicTyped: (draft, topic) => { draft.topic = topic },
-      loaded: (draft, tab, lane) => {
-        // Search hits answer one query and carry no standing position, so every feed lane is ranked.
-        if (tab !== 'search') {
-          draft.moves = { ...draft.moves, [tab]: rankLane(zhihuLane(draft, tab).rows, lane.rows) }
+      searchOpened: (draft, query) => {
+        const trimmed = query.trim()
+        if (trimmed === '') return
+        const tabs = zhihuSearches(draft)
+        draft.searches = tabs.some(tab => tab.query === trimmed)
+          ? tabs
+          : [...tabs, { query: trimmed, lane: emptyLane() }].slice(-ZHIHU_SEARCH_TABS)
+        draft.activeSearch = trimmed
+        draft.query = trimmed
+        delete draft.search
+      },
+      searchShown: (draft, query) => {
+        draft.activeSearch = query
+        draft.query = query
+      },
+      searchClosed: (draft, query) => {
+        const tabs = zhihuSearches(draft)
+        const index = tabs.findIndex(tab => tab.query === query)
+        if (index < 0) return
+        const remaining = tabs.filter(tab => tab.query !== query)
+        draft.searches = remaining
+        if (draft.activeSearch !== query) return
+        const next = remaining[index] ?? remaining[index - 1]
+        if (next === undefined) {
+          delete draft.activeSearch
+          draft.query = ''
+          return
         }
+        draft.activeSearch = next.query
+        draft.query = next.query
+      },
+      loaded: (draft, tab, lane) => {
+        draft.moves = { ...draft.moves, [tab]: rankLane(zhihuLane(draft, tab).rows, lane.rows) }
         writeLane(draft, tab, lane)
       },
       appended: (draft, tab, lane) => {
-        const current = tab === 'search' ? draft.search : zhihuLane(draft, tab)
+        const current = zhihuLane(draft, tab)
         writeLane(draft, tab, { rows: [...current.rows, ...lane.rows], cursor: lane.cursor })
+      },
+      searchLoaded: (draft, query, lane) => {
+        draft.searches = zhihuSearches(draft).map(tab => (tab.query === query ? { query, lane } : tab))
+      },
+      searchAppended: (draft, query, lane) => {
+        draft.searches = zhihuSearches(draft).map((tab) => {
+          if (tab.query !== query) return tab
+          return { query, lane: { rows: [...tab.lane.rows, ...lane.rows], cursor: lane.cursor } }
+        })
       },
       scrolled: (draft, scrollTop) => { draft.scrollTop = scrollTop },
       densified: (draft, density) => { draft.density = density },

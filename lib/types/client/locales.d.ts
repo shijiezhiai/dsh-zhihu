@@ -54,6 +54,8 @@ export declare const en: {
     'page.searchPlaceholder': string;
     'page.topicAction': string;
     'page.searchAction': string;
+    'page.searchTabs': string;
+    'page.closeSearch': string;
     'page.loadMore': string;
     'page.loadingMore': string;
     'page.end': string;

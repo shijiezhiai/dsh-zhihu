@@ -21,6 +21,15 @@ export interface ZhihuPageLane {
     rows: readonly ZhihuFeedRow[];
     cursor: string;
 }
+/** One search the page keeps open, with the hits that answered it. */
+export interface ZhihuSearchTab {
+    /** The text that produced the hits, which also names the tab. */
+    readonly query: string;
+    /** The hits as this search left them. */
+    readonly lane: ZhihuPageLane;
+}
+/** How many searches the page keeps, so a long reading session does not grow the stored state. */
+export declare const ZHIHU_SEARCH_TABS = 8;
 /** How one row moved when its lane was read, measured against that lane's previous read. */
 export type ZhihuRankMove = {
     readonly kind: 'new';
@@ -80,8 +89,20 @@ export interface ZhihuPageState {
      * without one, so readers go through {@link zhihuLane}.
      */
     feeds: Partial<Record<ZhihuFeedTab, ZhihuPageLane>>;
-    /** The loaded content of the search lane. */
-    search: ZhihuPageLane;
+    /**
+     * The searches the page keeps, oldest first, so a second search adds a tab instead of replacing
+     * the hits of the first.
+     * A state persisted before search tabs existed restores without the field, so readers go through
+     * {@link zhihuSearches}.
+     */
+    searches?: readonly ZhihuSearchTab[];
+    /** The search whose hits are on screen; absent when the reader ran none. */
+    activeSearch?: string;
+    /**
+     * The one search lane of a state persisted before search tabs existed.
+     * Read it through {@link zhihuSearches}, which folds it into its own tab.
+     */
+    search?: ZhihuPageLane;
     /** Vertical offset of the list, so a reopened page resumes where the reader left it. */
     scrollTop: number;
     /**
@@ -129,19 +150,51 @@ export type ZhihuPageActions = {
      */
     topicTyped(draft: ZhihuPageState, topic: string): void;
     /**
-     * Replace one lane with a first page.
+     * Open a search tab, or the one a repeated query already named, and show it.
+     * @param draft - the current state.
+     * @param query - the text the reader submitted.
+     */
+    searchOpened(draft: ZhihuPageState, query: string): void;
+    /**
+     * Show one search tab the reader already has.
+     * @param draft - the current state.
+     * @param query - the search to show.
+     */
+    searchShown(draft: ZhihuPageState, query: string): void;
+    /**
+     * Close one search tab, moving to a neighbour when the closed one was on screen.
+     * @param draft - the current state.
+     * @param query - the search to drop.
+     */
+    searchClosed(draft: ZhihuPageState, query: string): void;
+    /**
+     * Replace one feed lane with a first page.
      * @param draft - the current state.
      * @param tab - the lane that answered.
      * @param lane - the rows and continuation of that page.
      */
-    loaded(draft: ZhihuPageState, tab: ZhihuPageTab, lane: ZhihuPageLane): void;
+    loaded(draft: ZhihuPageState, tab: ZhihuFeedTab, lane: ZhihuPageLane): void;
     /**
-     * Extend one lane with a continuation page.
+     * Extend one feed lane with a continuation page.
      * @param draft - the current state.
      * @param tab - the lane that answered.
      * @param lane - the rows of the continuation and the token that follows them.
      */
-    appended(draft: ZhihuPageState, tab: ZhihuPageTab, lane: ZhihuPageLane): void;
+    appended(draft: ZhihuPageState, tab: ZhihuFeedTab, lane: ZhihuPageLane): void;
+    /**
+     * Replace one search tab's hits with a first page.
+     * @param draft - the current state.
+     * @param query - the search that answered.
+     * @param lane - the rows and continuation of that page.
+     */
+    searchLoaded(draft: ZhihuPageState, query: string, lane: ZhihuPageLane): void;
+    /**
+     * Extend one search tab with a continuation page.
+     * @param draft - the current state.
+     * @param query - the search that answered.
+     * @param lane - the rows of the continuation and the token that follows them.
+     */
+    searchAppended(draft: ZhihuPageState, query: string, lane: ZhihuPageLane): void;
     /**
      * Record where the list was left.
      * @param draft - the current state.
@@ -190,6 +243,20 @@ export type ZhihuPageStore = EngineStoreHandle<ZhihuPageState, ZhihuPageActions>
  * @returns the stored lane, or an empty one when the state predates that lane.
  */
 export declare function zhihuLane(state: ZhihuPageState, tab: ZhihuFeedTab): ZhihuPageLane;
+/**
+ * Read the searches a stored page keeps from the fields that carry them.
+ * @param searches - the tabs a state persisted with search tabs carries.
+ * @param legacy - the single search lane of a state persisted before tabs existed.
+ * @param query - the text that lane was run with.
+ * @returns the tabs, oldest first; a lane that never answered keeps no tab at all.
+ */
+export declare function zhihuSearchTabs(searches: readonly ZhihuSearchTab[] | undefined, legacy: ZhihuPageLane | undefined, query: string): readonly ZhihuSearchTab[];
+/**
+ * Read the searches one page state keeps.
+ * @param state - the page state.
+ * @returns the tabs, oldest first, folding a state persisted before tabs existed into one.
+ */
+export declare function zhihuSearches(state: ZhihuPageState): readonly ZhihuSearchTab[];
 /**
  * Declare the page store, persisted so a reopened page keeps its lane, its rows and its offset.
  * @returns a fresh store handle for the `main` registration.

@@ -42,9 +42,12 @@ import {
   zhihuDiscussionEntry,
   zhihuDiscussionSession,
   zhihuLane,
+  zhihuSearchTabs,
   type ZhihuFeedTab,
+  type ZhihuPageLane,
   type ZhihuPageStore,
   type ZhihuPageTab,
+  type ZhihuSearchTab,
 } from './zhihu-page-store.ts'
 import { ZhihuOpenedContent, ZhihuRowList, type ZhihuOpenedRow, type ZhihuTranslate } from './ZhihuContent.tsx'
 import { ZhihuThreads, type ZhihuThread, type ZhihuThreadArchive } from './ZhihuThreads.tsx'
@@ -247,84 +250,122 @@ function useFeedLane(face: ZhihuPageFace, kind: FeedTab, active: boolean, useSto
   return { page, appending, restored, reload, loadMore }
 }
 
+/** A search lane with nothing in it, shared so an idle tab does not allocate one per render. */
+const NO_ROWS: ZhihuPageLane = { rows: [], cursor: '' }
+
+/** The phase of a tab nobody asked about, and of one whose hits are on screen. */
+const IDLE_PHASE: LanePhase = { status: 'idle' }
+const READY_PHASE: LanePhase = { status: 'ready' }
+
 /**
- * Run the search lane, one query at a time, over the pages the store keeps.
+ * Run the search tabs, one per query, over the pages the store keeps.
+ *
+ * Each submitted query keeps its own tab, so a later search shows beside the earlier ones instead of
+ * replacing their hits. A tab's phase is local, so a reopened page shows the stored hits and asks
+ * for nothing until the reader pages or retries that tab.
  * @param face - the page's fetching face.
  * @param useStore - the page store's read seat.
  * @param actions - the page store's write seat.
- * @returns the lane's page, whether a continuation is in flight, whether the lane opened with
- * stored hits, and the three requests.
+ * @returns the tabs, the one on screen with its page, and the five requests.
  */
-function useSearchLane(face: ZhihuPageFace, useStore: PageSelector, actions: PageActions): {
+function useSearchLanes(face: ZhihuPageFace, useStore: PageSelector, actions: PageActions): {
+  readonly tabs: readonly ZhihuSearchTab[]
+  readonly active: ZhihuSearchTab | undefined
   readonly page: SearchPage
   readonly appending: boolean
   readonly restored: boolean
   readonly loadMore: () => void
   readonly run: (query: string) => void
+  readonly retry: () => void
+  readonly show: (query: string) => void
+  readonly close: (query: string) => void
 } {
-  const rows = useStore(state => state.search.rows)
-  const cursor = useStore(state => state.search.cursor)
+  const searches = useStore(state => state.searches)
+  const legacy = useStore(state => state.search)
   const saved = useStore(state => state.query)
-  const [phase, setPhase] = useState<LanePhase>(() => (rows.length > 0 ? { status: 'ready' } : { status: 'idle' }))
-  const [appending, setAppending] = useState(false)
-  /** Latest query of this lane, so an answer for an abandoned search writes nothing. */
-  const generation = useRef(0)
-  /** Whether a request of this lane is unanswered, so a top-up cannot ask twice for one page. */
-  const inFlight = useRef(false)
-  /** Whether this lane has asked for a page since it mounted. */
-  const asked = useRef(false)
-  /** A lane that opened with stored hits asks for nothing until the reader scrolls or refreshes. */
-  const restored = rows.length > 0 && !asked.current
+  const named = useStore(state => state.activeSearch)
+  const tabs = useMemo(() => zhihuSearchTabs(searches, legacy, saved), [legacy, saved, searches])
+  // A state persisted before tabs existed names none, so its single search is the one on screen.
+  const active = useMemo(
+    () => tabs.find(tab => tab.query === (named ?? (searches === undefined ? saved : undefined))),
+    [named, saved, searches, tabs],
+  )
+  const query = active?.query
+  const lane = active?.lane ?? NO_ROWS
+  const [phases, setPhases] = useState<Record<string, LanePhase>>({})
+  const [appendingIn, setAppendingIn] = useState<readonly string[]>([])
+  /** The queries this page has asked for, so a tab restored with hits keeps them. */
+  const asked = useRef(new Set<string>())
+  /** The queries whose request is unanswered, so a top-up cannot ask twice for one page. */
+  const inFlight = useRef(new Set<string>())
+  /** The latest request of each query, so an answer for an abandoned search writes nothing. */
+  const generations = useRef(new Map<string, number>())
+  const phase = query === undefined ? IDLE_PHASE : phases[query] ?? (lane.rows.length > 0 ? READY_PHASE : IDLE_PHASE)
+  const appending = query !== undefined && appendingIn.includes(query)
+  const restored = query !== undefined && lane.rows.length > 0 && !asked.current.has(query)
 
-  const request = useCallback((query: string, continuation?: string) => {
-    const current = generation.current + 1
-    generation.current = current
-    inFlight.current = true
-    asked.current = true
-    if (continuation === undefined) setPhase({ status: 'loading' })
-    else setAppending(true)
-    void face.search(query, continuation).then((result) => {
-      inFlight.current = false
-      if (current !== generation.current) return
-      setAppending(false)
+  const request = useCallback((wanted: string, continuation?: string) => {
+    const generation = (generations.current.get(wanted) ?? 0) + 1
+    generations.current.set(wanted, generation)
+    inFlight.current.add(wanted)
+    asked.current.add(wanted)
+    if (continuation === undefined) setPhases(kept => ({ ...kept, [wanted]: { status: 'loading' } }))
+    else setAppendingIn(kept => [...kept, wanted])
+    void face.search(wanted, continuation).then((result) => {
+      inFlight.current.delete(wanted)
+      if (generation !== generations.current.get(wanted)) return
+      setAppendingIn(kept => kept.filter(entry => entry !== wanted))
       if (!result.ok) {
-        setPhase(continuation === undefined
-          ? { status: 'failed', failure: result.failure }
-          : { status: 'ready', failure: result.failure })
+        setPhases(kept => ({
+          ...kept,
+          [wanted]: continuation === undefined
+            ? { status: 'failed', failure: result.failure }
+            : { status: 'ready', failure: result.failure },
+        }))
         return
       }
-      // A page that carries no rows ends the lane, so a repeated cursor cannot page forever.
+      // A page that carries no rows ends the tab, so a repeated cursor cannot page forever.
       const next = result.value.rows.length === 0 ? '' : result.value.cursor ?? ''
-      if (continuation === undefined) actions.loaded('search', { rows: result.value.rows, cursor: next })
-      else actions.appended('search', { rows: result.value.rows, cursor: next })
-      setPhase({ status: 'ready' })
+      const slice = { rows: result.value.rows, cursor: next }
+      if (continuation === undefined) actions.searchLoaded(wanted, slice)
+      else actions.searchAppended(wanted, slice)
+      setPhases(kept => ({ ...kept, [wanted]: { status: 'ready' } }))
     })
   }, [actions, face])
 
-  const run = useCallback((query: string) => {
-    const trimmed = query.trim()
+  const run = useCallback((text: string) => {
+    const trimmed = text.trim()
     if (trimmed === '') return
-    actions.typed(trimmed)
+    actions.searchOpened(trimmed)
     request(trimmed)
   }, [actions, request])
 
+  const retry = useCallback(() => {
+    if (query === undefined) return
+    request(query)
+  }, [query, request])
+
   const loadMore = useCallback(() => {
-    if (inFlight.current || phase.status !== 'ready' || cursor === '' || appending || saved === '') return
-    request(saved, cursor)
-  }, [appending, cursor, phase.status, request, saved])
+    if (query === undefined || inFlight.current.has(query)) return
+    if (phase.status !== 'ready' || lane.cursor === '' || appending) return
+    request(query, lane.cursor)
+  }, [appending, lane.cursor, phase.status, query, request])
 
   const page = useMemo<SearchPage>(() => {
-    if (phase.status === 'failed') return { status: 'failed', rows: [], failure: phase.failure }
+    if (phase.status === 'failed') return { status: 'failed', rows: lane.rows, failure: phase.failure }
     if (phase.status !== 'ready') return { status: phase.status, rows: [] }
     return {
       status: 'ready',
-      rows,
-      ...(cursor === '' ? {} : { cursor }),
+      rows: lane.rows,
+      ...(lane.cursor === '' ? {} : { cursor: lane.cursor }),
       ...(phase.failure === undefined ? {} : { failure: phase.failure }),
     }
-  }, [cursor, phase, rows])
+  }, [lane.cursor, lane.rows, phase])
 
-  return { page, appending, restored, loadMore, run }
+  const show = useCallback((wanted: string) => { actions.searchShown(wanted) }, [actions])
+  const close = useCallback((wanted: string) => { actions.searchClosed(wanted) }, [actions])
+
+  return { tabs, active, page, appending, restored, run, retry, loadMore, show, close }
 }
 
 /**
@@ -484,7 +525,7 @@ export function ZhihuPage(
   const hot = useFeedLane(face, 'hot', tab === 'hot' && opened === null, useStore, actions)
   const follow = useFeedLane(face, 'follow', tab === 'follow' && opened === null, useStore, actions)
   const watched = useFeedLane(face, 'topic', tab === 'topic' && opened === null, useStore, actions, topic)
-  const search = useSearchLane(face, useStore, actions)
+  const search = useSearchLanes(face, useStore, actions)
   const lanes: Readonly<Record<FeedTab, ReturnType<typeof useFeedLane>>> = {
     recommend: recommended,
     hot,
@@ -1067,6 +1108,34 @@ export function ZhihuPage(
           <Button variant="outline" size="sm" type="submit">{t('page.topicAction')}</Button>
         </form>
       )}
+      {tab === 'search' && search.tabs.length > 0 && (
+        <div className={css.searchTabs} role="tablist" aria-label={t('page.searchTabs')}>
+          {search.tabs.map((item) => {
+            const showing = item.query === search.active?.query
+            return (
+              <span key={item.query} className={css.searchTab} data-active={showing ? 'true' : 'false'}>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={showing}
+                  className={css.searchTabName}
+                  onClick={() => { search.show(item.query) }}
+                >
+                  {item.query}
+                </button>
+                <button
+                  type="button"
+                  className={css.searchTabClose}
+                  aria-label={t('page.closeSearch', { query: item.query })}
+                  onClick={() => { search.close(item.query) }}
+                >
+                  ×
+                </button>
+              </span>
+            )
+          })}
+        </div>
+      )}
       {tab === 'search' && (
         <form
           className={css.searchBar}
@@ -1097,7 +1166,7 @@ export function ZhihuPage(
         {page.status === 'failed' && (
           <div className={css.failure}>
             <p className={css.state}>{zhihuPanelFailureLine(t, page.failure)}</p>
-            <Button variant="outline" size="sm" onClick={tab === 'search' ? () => { search.run(query) } : refresh}>
+            <Button variant="outline" size="sm" onClick={tab === 'search' ? search.retry : refresh}>
               {t('panel.retry')}
             </Button>
           </div>
