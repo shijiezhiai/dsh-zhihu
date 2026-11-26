@@ -11,8 +11,8 @@ import type { RemoteFailure } from '@deepseek-ai/dsh-api-remotes/client'
 // Type-only: pulls the generated 'zhihu' TypertRemoteNamespaceMap merge.
 import type {} from '@deepseek-ai/dsh-zhihu-plugin/remote'
 import type {
-  ZhihuClientSettings, ZhihuExportQuery, ZhihuExportResult, ZhihuFailureTarget, ZhihuFeedQuery,
-  ZhihuFeedResult, ZhihuFeedRow, ZhihuReadItem, ZhihuSearchQuery,
+  ZhihuClientSettings, ZhihuCommentsResult, ZhihuExportQuery, ZhihuExportResult, ZhihuFailureTarget,
+  ZhihuFeedQuery, ZhihuFeedResult, ZhihuFeedRow, ZhihuReadItem, ZhihuSearchQuery,
 } from '@deepseek-ai/dsh-zhihu-plugin/types'
 import { RemoteError } from '@deepseek-ai/dsh-typert-protocol'
 
@@ -53,6 +53,13 @@ export interface ZhihuPageFace {
    * @returns the content, or the refusal.
    */
   read(row: ZhihuFeedRow): Promise<ZhihuPageOutcome<ZhihuReadItem>>
+  /**
+   * Read one slice of a row's root comments.
+   * @param row - the opened row whose thread to read.
+   * @param limit - comments requested; omitted reads the page's default slice.
+   * @returns the comments and the thread's size, or the refusal.
+   */
+  comments(row: ZhihuFeedRow, limit?: number): Promise<ZhihuPageOutcome<ZhihuCommentsResult>>
   /**
    * Read the deployment settings this page applies. A Client whose Host publishes no namespace, or
    * a refused call, leaves the page on its own cap, so this reports no failure of its own.
@@ -107,6 +114,15 @@ export function zhihuPageFace(resolveRemote: () => ClientRemote['zhihu'] | undef
       const remote = resolveRemote()
       if (remote === undefined) return unavailable(row.kind)
       const result = await remote.read({ kind: row.kind, id: row.id, title: row.title })
+      return result.ok ? { ok: true, value: result.value } : { ok: false, failure: result.error }
+    },
+    async comments(row, limit) {
+      const remote = resolveRemote()
+      if (remote === undefined) return unavailable(row.kind)
+      const request = limit === undefined
+        ? { kind: row.kind, id: row.id }
+        : { kind: row.kind, id: row.id, limit }
+      const result = await remote.comments(request)
       return result.ok ? { ok: true, value: result.value } : { ok: false, failure: result.error }
     },
     async settings() {

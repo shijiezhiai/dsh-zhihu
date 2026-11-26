@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react';
 import type { RemoteFailure } from '@deepseek-ai/dsh-api-remotes/client';
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
-import type { ZhihuFeedRow, ZhihuReadItem } from '@deepseek-ai/dsh-zhihu-plugin/types';
+import type { ZhihuCommentsResult, ZhihuFeedRow, ZhihuReadItem } from '@deepseek-ai/dsh-zhihu-plugin/types';
+import type { ZhihuPageOutcome } from './zhihu-page-face.ts';
 import type { ZhihuPageDensity, ZhihuRankMove } from './zhihu-page-store.ts';
 /** Copy handle of the Zhihu namespace. */
 export type ZhihuTranslate = PropsLocale<'zhihu'>['t'];
@@ -49,17 +50,34 @@ export declare function ZhihuRowList({ rows, t, onOpen, moves, counted, density 
     readonly density?: ZhihuPageDensity;
 }): ReactNode;
 /**
+ * Render one opened row's root comments, read once it opens.
+ *
+ * The seam answers one slice of the thread with no continuation token, so a further read asks for
+ * a larger slice and keeps the comments already shown.
+ * @param props.row - the row whose thread this is.
+ * @param props.t - copy of the Zhihu namespace.
+ * @param props.load - reads one slice of the thread.
+ * @returns the comment section.
+ */
+export declare function ZhihuComments({ row, t, load }: {
+    readonly row: ZhihuFeedRow;
+    readonly t: ZhihuTranslate;
+    readonly load: (row: ZhihuFeedRow, limit: number) => Promise<ZhihuPageOutcome<ZhihuCommentsResult>>;
+}): ReactNode;
+/**
  * Render one opened row: its title, body, author line, and the refusal path.
  * @param props.state - the open row, its content, or its refusal.
  * @param props.t - copy of the Zhihu namespace.
  * @param props.onRetry - called when the reader retries a refused read.
  * @param props.onAsk - drafts a conversation about this row; omitted where the seat has no Workspace.
+ * @param props.onComments - reads the row's thread; omitted where the seat has no comment lane.
  * @returns the opened row.
  */
-export declare function ZhihuOpenedContent<R extends ZhihuFeedRow>({ state, t, onRetry, onAsk }: {
+export declare function ZhihuOpenedContent<R extends ZhihuFeedRow>({ state, t, onRetry, onAsk, onComments }: {
     readonly state: ZhihuOpenedRow<R>;
     readonly t: ZhihuTranslate;
     readonly onRetry: () => void;
     readonly onAsk?: () => void;
+    readonly onComments?: (row: ZhihuFeedRow, limit: number) => Promise<ZhihuPageOutcome<ZhihuCommentsResult>>;
 }): ReactNode;
 //# sourceMappingURL=ZhihuContent.d.ts.map

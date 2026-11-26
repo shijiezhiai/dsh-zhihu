@@ -74,6 +74,8 @@ export interface ZhihuFeedItem {
   readonly excerpt: string
   /** Hot-list heat label such as `3308 万热度`; absent outside the hot list. */
   readonly heatLabel?: string
+  /** Upvote count the payload reports for the entry; absent when the feed carries none. */
+  readonly voteupCount?: number
   /** Canonical web URL of the linked content. */
   readonly url: string
 }

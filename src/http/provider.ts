@@ -376,6 +376,7 @@ function targetItem(item: ZhihuRecommendItem | ZhihuMomentItem): ZhihuFeedItem[]
     title: target.title ?? target.question?.title ?? '',
     excerpt: toPlainText(target.excerpt ?? ''),
     url: contentUrl(kind, id),
+    ...(target.voteup_count === undefined ? {} : { voteupCount: target.voteup_count }),
   }]
 }
 
@@ -512,5 +513,6 @@ function searchHit(item: ZhihuSearchItem): ZhihuSearchHit[] {
     excerpt: toSearchText(object.excerpt ?? ''),
     url: contentUrl(kind, id),
     ...(object.created_time === undefined ? {} : { createdTime: object.created_time }),
+    ...(object.voteup_count === undefined ? {} : { voteupCount: object.voteup_count }),
   }]
 }

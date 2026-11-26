@@ -2,6 +2,13 @@
 
 Every tag publishes the prebuilt tarball the plugin-market entry installs, at `https://github.com/shijiezhiai/dsh-zhihu/releases/download/v<version>/dsh-zhihu.tgz`; the asset name stays `dsh-zhihu.tgz`, so a version is identified by its URL.
 
+## 1.11.0
+
+### Added
+
+- A feed row shows the upvote count its payload carries, so the recommendation and follow lanes and the search results say how much an item earned before it is opened. The hot list's question targets carry no count, so those rows keep showing only their heat label, and the panel never spends a request to fill a number in.
+- An opened row now lists its root comments under the body: ten are read when the row opens, each shows its author, upvotes, reply count and text, and "Read more" asks for ten more. `remote.comments` serves one slice per call, so a thread larger than `http.commentPages` pages stops growing and the button goes away; a refused read keeps the comments already shown and offers a retry.
+
 ## 1.10.0
 
 ### Added

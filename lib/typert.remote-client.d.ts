@@ -4,10 +4,11 @@ import type {
   TypertRemoteInfo,
   TypertRemoteMethod,
 } from '@deepseek-ai/dsh-typert-protocol'
-import type { ZhihuClientSettings, ZhihuExportQuery, ZhihuExportResult, ZhihuFeedQuery, ZhihuFeedResult, ZhihuReadItem, ZhihuReadQuery, ZhihuSearchQuery, ZhihuSearchResult } from '@mayangyang/dsh-zhihu/types'
+import type { ZhihuClientSettings, ZhihuCommentsQuery, ZhihuCommentsResult, ZhihuExportQuery, ZhihuExportResult, ZhihuFeedQuery, ZhihuFeedResult, ZhihuReadItem, ZhihuReadQuery, ZhihuSearchQuery, ZhihuSearchResult } from '@mayangyang/dsh-zhihu/types'
 
 declare module '@deepseek-ai/dsh-typert-protocol' {
   interface TypertRemoteNamespace$7a68696875 {
+    comments: (request: ZhihuCommentsQuery) => Promise<RemoteResult<ZhihuCommentsResult>>
     export: (request: ZhihuExportQuery) => Promise<RemoteResult<ZhihuExportResult>>
     feed: (request: ZhihuFeedQuery) => Promise<RemoteResult<ZhihuFeedResult>>
     read: (request: ZhihuReadQuery) => Promise<RemoteResult<ZhihuReadItem>>
@@ -15,6 +16,7 @@ declare module '@deepseek-ai/dsh-typert-protocol' {
     settings: () => Promise<RemoteResult<ZhihuClientSettings>>
   }
   interface TypertRemoteMap {
+    'zhihu/comments': (request: ZhihuCommentsQuery) => Promise<RemoteResult<ZhihuCommentsResult>>
     'zhihu/export': (request: ZhihuExportQuery) => Promise<RemoteResult<ZhihuExportResult>>
     'zhihu/feed': (request: ZhihuFeedQuery) => Promise<RemoteResult<ZhihuFeedResult>>
     'zhihu/read': (request: ZhihuReadQuery) => Promise<RemoteResult<ZhihuReadItem>>
@@ -27,6 +29,7 @@ declare module '@deepseek-ai/dsh-typert-protocol' {
 }
 
 export declare const TYPERT_REMOTE: TypertRemoteInfo<{
+  readonly 'zhihu/comments': TypertRemoteMethod<{ readonly 'request': ZhihuCommentsQuery }, ZhihuCommentsResult>
   readonly 'zhihu/export': TypertRemoteMethod<{ readonly 'request': ZhihuExportQuery }, ZhihuExportResult>
   readonly 'zhihu/feed': TypertRemoteMethod<{ readonly 'request': ZhihuFeedQuery }, ZhihuFeedResult>
   readonly 'zhihu/read': TypertRemoteMethod<{ readonly 'request': ZhihuReadQuery }, ZhihuReadItem>

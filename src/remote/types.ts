@@ -95,8 +95,44 @@ export interface ZhihuFeedRow {
   readonly excerpt: string
   /** Provider heat label when the feed carries one. */
   readonly heatLabel?: string
+  /** Upvote count the feed reported for the row; absent when the feed carries none. */
+  readonly voteupCount?: number
   /** Canonical provider URL, so clients never build links. */
   readonly url: string
+}
+
+/** One request for the root comments of a content. */
+export interface ZhihuCommentsQuery {
+  /** Which kind of content `id` addresses. */
+  readonly kind: 'question' | 'answer' | 'article'
+  /** Provider content id, carried as a string because some ids exceed 2^53. */
+  readonly id: string
+  /** Comments requested; the Host applies its own default and cap. */
+  readonly limit?: number
+}
+
+/** One root comment a browser can render without credentials. */
+export interface ZhihuCommentRow {
+  /** Lossless decimal comment id. */
+  readonly id: string
+  /** Author display name; empty when the payload carries none. */
+  readonly author: string
+  /** Plain-text body with markup removed. */
+  readonly text: string
+  /** Upvote count of the comment; 0 when unavailable. */
+  readonly likes: number
+  /** How many replies the comment collected. */
+  readonly replies: number
+  /** Creation time in epoch seconds; absent when the payload carried none. */
+  readonly createdTime?: number
+}
+
+/** The comments one call answers: a slice of the thread, ranked by the endpoint. */
+export interface ZhihuCommentsResult {
+  /** Comments in the order the endpoint ranked them. */
+  readonly items: readonly ZhihuCommentRow[]
+  /** Number of root comments on the content; absent when the payload carried none. */
+  readonly total?: number
 }
 
 /** One read request; a question read returns its title plus its top answer text. */

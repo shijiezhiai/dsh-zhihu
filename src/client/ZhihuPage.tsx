@@ -566,6 +566,12 @@ export function ZhihuPage(
     })
   }, [face])
 
+  /** Read one slice of an opened row's thread; a stable handle keeps the section from refetching. */
+  const loadComments = useCallback(
+    (row: ZhihuFeedRow, limit: number) => face.comments(row, limit),
+    [face],
+  )
+
   /** Drop the panel's reference; the discussion Session and its transcript stay. */
   const release = useCallback(() => {
     held.current?.release()
@@ -917,7 +923,12 @@ export function ZhihuPage(
                 if (event.shiftKey) quoteAt(event.target)
               }}
             >
-              <ZhihuOpenedContent state={opened} t={t} onRetry={() => { read(opened.row) }} />
+              <ZhihuOpenedContent
+                state={opened}
+                t={t}
+                onRetry={() => { read(opened.row) }}
+                onComments={loadComments}
+              />
             </div>
           )
           : (

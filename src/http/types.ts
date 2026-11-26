@@ -68,6 +68,8 @@ export interface ZhihuHotTarget {
   readonly title?: string
   /** Rich-text excerpt. */
   readonly excerpt?: string
+  /** Upvote count; a hot-list question target carries none. */
+  readonly voteup_count?: number
 }
 
 /** One hot-list entry. */
@@ -94,6 +96,8 @@ export interface ZhihuRecommendTarget {
   readonly excerpt?: string
   /** The question an answer belongs to; its title is the only title an answer has. */
   readonly question?: { readonly title?: string }
+  /** Upvote count of the linked answer or article. */
+  readonly voteup_count?: number
 }
 
 /** One recommendation-feed entry. */

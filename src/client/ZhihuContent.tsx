@@ -1,13 +1,16 @@
 // Shared Zhihu content pieces: the untrusted-content notice, one feed list, and
 // one opened row. The right Sidebar tab and the full page render the same
 // markup, so a row reads the same wherever it is opened.
-import { Fragment, useMemo, useRef, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import type { KeyboardEvent, ReactNode } from 'react'
 import { Button, MarkdownText, Tag } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { MarkdownLabels } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { RemoteFailure } from '@deepseek-ai/dsh-api-remotes/client'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
-import type { ZhihuFeedRow, ZhihuReadItem } from '@deepseek-ai/dsh-zhihu-plugin/types'
+import type {
+  ZhihuCommentRow, ZhihuCommentsResult, ZhihuFeedRow, ZhihuReadItem,
+} from '@deepseek-ai/dsh-zhihu-plugin/types'
+import type { ZhihuPageOutcome } from './zhihu-page-face.ts'
 import { zhihuPanelFailureLine } from './zhihu-panel-failure.ts'
 import type { ZhihuPageDensity, ZhihuRankMove } from './zhihu-page-store.ts'
 import { zhihuRowKey } from './zhihu-row-key.ts'
@@ -170,10 +173,15 @@ export function ZhihuRowList({ rows, t, onOpen, moves, counted = false, density 
                   {row.title}
                 </button>
                 <span className={css.excerpt}>{row.excerpt}</span>
-                {(move !== undefined || row.heatLabel !== undefined) && (
+                {(move !== undefined || row.heatLabel !== undefined || row.voteupCount !== undefined) && (
                   <span className={css.meta}>
                     {move !== undefined && <ZhihuRankTag move={move} t={t} />}
                     {row.heatLabel !== undefined && <span className={css.heat}>{row.heatLabel}</span>}
+                    {row.voteupCount !== undefined && (
+                      <span className={css.heat}>
+                        {row.voteupCount === 1 ? t('read.upvotesOne') : t('read.upvotes', { count: row.voteupCount })}
+                      </span>
+                    )}
                   </span>
                 )}
               </li>
@@ -188,19 +196,135 @@ export function ZhihuRowList({ rows, t, onOpen, moves, counted = false, density 
   )
 }
 
+/** Comments one request asks for, and the step each further request adds. */
+const COMMENT_STEP = 10
+
+/** One opened row's thread: what has been read, how much was asked for, and whether more follows. */
+interface ZhihuThread {
+  /** Comment count this read asked for. */
+  readonly limit: number
+  /** Whether the read is in flight, answered, or refused. */
+  readonly status: 'loading' | 'ready' | 'failed'
+  /** Comments read so far, kept across a further read so the list never blanks. */
+  readonly items: readonly ZhihuCommentRow[]
+  /** Root comments on the content; absent when the payload carried none. */
+  readonly total?: number
+  /** True when another read cannot add a comment. */
+  readonly exhausted: boolean
+  /** The refusal behind a failed read. */
+  readonly failure?: RemoteFailure
+}
+
+/**
+ * Render one opened row's root comments, read once it opens.
+ *
+ * The seam answers one slice of the thread with no continuation token, so a further read asks for
+ * a larger slice and keeps the comments already shown.
+ * @param props.row - the row whose thread this is.
+ * @param props.t - copy of the Zhihu namespace.
+ * @param props.load - reads one slice of the thread.
+ * @returns the comment section.
+ */
+export function ZhihuComments({ row, t, load }: {
+  readonly row: ZhihuFeedRow
+  readonly t: ZhihuTranslate
+  readonly load: (row: ZhihuFeedRow, limit: number) => Promise<ZhihuPageOutcome<ZhihuCommentsResult>>
+}): ReactNode {
+  const [thread, setThread] = useState<ZhihuThread>({ limit: COMMENT_STEP, status: 'loading', items: [], exhausted: false })
+  /** Counts reads of the same slice, so a retry runs again with the limit unchanged. */
+  const [attempt, setAttempt] = useState(0)
+  const requested = thread.limit
+  useEffect(() => {
+    let live = true
+    setThread(previous => ({ ...previous, status: 'loading' }))
+    void load(row, requested).then((result) => {
+      if (!live) return
+      setThread((previous) => {
+        if (!result.ok) return { ...previous, status: 'failed', failure: result.failure }
+        const { items } = result.value
+        const total = result.value.total
+        const grew = items.length > previous.items.length
+        return {
+          limit: previous.limit,
+          status: 'ready',
+          items,
+          ...(total === undefined ? {} : { total }),
+          exhausted: total !== undefined ? items.length >= total : items.length < requested || !grew,
+        }
+      })
+    })
+    return () => { live = false }
+  }, [load, row, requested, attempt])
+
+  const count = thread.total === undefined
+    ? ''
+    : ' · ' + t('comments.count', { shown: thread.items.length, total: thread.total })
+  return (
+    <section className={css.comments}>
+      <h4 className={css.commentsTitle}>{t('comments.heading')}{count}</h4>
+      {thread.status === 'loading' && thread.items.length === 0 && <p className={css.state}>{t('card.loading')}</p>}
+      {thread.status === 'failed' && thread.failure !== undefined && (
+        <div className={css.failure}>
+          <p className={css.state}>{zhihuPanelFailureLine(t, thread.failure)}</p>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setThread(previous => ({ ...previous, status: 'loading' }))
+              setAttempt(count => count + 1)
+            }}
+          >
+            {t('panel.retry')}
+          </Button>
+        </div>
+      )}
+      {thread.status === 'ready' && thread.items.length === 0 && <p className={css.state}>{t('comments.empty')}</p>}
+      {thread.items.length > 0 && (
+        <ol className={css.commentList}>
+          {thread.items.map(item => (
+            <li key={item.id} className={css.comment}>
+              <p className={css.commentText}>{item.text}</p>
+              <span className={css.meta}>
+                {item.author === '' ? t('panel.anonymous') : item.author}
+                {' · '}{item.likes === 1 ? t('read.upvotesOne') : t('read.upvotes', { count: item.likes })}
+                {item.replies > 0 && (
+                  <>{' · '}{item.replies === 1
+                    ? t('comments.repliesOne')
+                    : t('comments.replies', { count: item.replies })}</>
+                )}
+              </span>
+            </li>
+          ))}
+        </ol>
+      )}
+      {thread.status === 'ready' && !thread.exhausted && (
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => { setThread(previous => ({ ...previous, limit: previous.limit + COMMENT_STEP })) }}
+        >
+          {t('comments.more')}
+        </Button>
+      )}
+    </section>
+  )
+}
+
 /**
  * Render one opened row: its title, body, author line, and the refusal path.
  * @param props.state - the open row, its content, or its refusal.
  * @param props.t - copy of the Zhihu namespace.
  * @param props.onRetry - called when the reader retries a refused read.
  * @param props.onAsk - drafts a conversation about this row; omitted where the seat has no Workspace.
+ * @param props.onComments - reads the row's thread; omitted where the seat has no comment lane.
  * @returns the opened row.
  */
-export function ZhihuOpenedContent<R extends ZhihuFeedRow>({ state, t, onRetry, onAsk }: {
+export function ZhihuOpenedContent<R extends ZhihuFeedRow>({ state, t, onRetry, onAsk, onComments }: {
   readonly state: ZhihuOpenedRow<R>
   readonly t: ZhihuTranslate
   readonly onRetry: () => void
   readonly onAsk?: () => void
+  readonly onComments?: (row: ZhihuFeedRow, limit: number) => Promise<ZhihuPageOutcome<ZhihuCommentsResult>>
 }): ReactNode {
   return (
     <div className={css.content}>
@@ -244,6 +368,7 @@ export function ZhihuOpenedContent<R extends ZhihuFeedRow>({ state, t, onRetry, 
       <a className={css.original} href={state.row.url} target="_blank" rel="noreferrer">
         {t('panel.openOriginal')}
       </a>
+      {onComments !== undefined && <ZhihuComments row={state.row} t={t} load={onComments} />}
     </div>
   )
 }

@@ -16,7 +16,8 @@ import type { ClientRemote } from '@deepseek-ai/dsh-api-gateway/client';
 import type { BoundActions } from '@deepseek-ai/dsh-client-store';
 import type { TabId } from '@deepseek-ai/dsh-client-ui-dockkit';
 import type { SessionId } from '@deepseek-ai/dsh-session/types';
-import type { ZhihuFeedRow, ZhihuReadItem } from '@deepseek-ai/dsh-zhihu-plugin/types';
+import type { ZhihuCommentsResult, ZhihuFeedRow, ZhihuReadItem } from '@deepseek-ai/dsh-zhihu-plugin/types';
+import type { ZhihuPageOutcome } from './zhihu-page-face.ts';
 import type { ZhihuAskOutcome } from './zhihu-ask.ts';
 import type { ZhihuPanelSegment, ZhihuPanelStore } from './zhihu-panel-store.ts';
 /** What the panel body calls to read one segment and to open one row. */
@@ -38,6 +39,13 @@ export interface ZhihuPanelInjected {
      * @param signal - the tab's lifetime signal; an ended record records nothing.
      */
     read(tabId: TabId, row: ZhihuFeedRow, signal: AbortSignal): void;
+    /**
+     * Read one slice of the open row's root comments.
+     * @param row - the row the reader has open.
+     * @param limit - comments requested; omitted reads the default slice.
+     * @returns the comments and the thread's size, or the refusal.
+     */
+    comments(row: ZhihuFeedRow, limit?: number): Promise<ZhihuPageOutcome<ZhihuCommentsResult>>;
     /**
      * Draft a conversation about the open row into a Workspace session.
      * @param row - the row the reader has open.

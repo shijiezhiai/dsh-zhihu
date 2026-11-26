@@ -26,6 +26,12 @@ export declare const en: {
     'read.truncated': string;
     'read.upvotes': string;
     'read.upvotesOne': string;
+    'comments.heading': string;
+    'comments.count': string;
+    'comments.empty': string;
+    'comments.more': string;
+    'comments.replies': string;
+    'comments.repliesOne': string;
     'markdown.copy': string;
     'markdown.copied': string;
     'markdown.code': string;

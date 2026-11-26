@@ -8,7 +8,7 @@
  */
 import type { ClientRemote } from '@deepseek-ai/dsh-api-gateway/client';
 import type { RemoteFailure } from '@deepseek-ai/dsh-api-remotes/client';
-import type { ZhihuClientSettings, ZhihuExportQuery, ZhihuExportResult, ZhihuFeedQuery, ZhihuFeedResult, ZhihuFeedRow, ZhihuReadItem } from '@deepseek-ai/dsh-zhihu-plugin/types';
+import type { ZhihuClientSettings, ZhihuCommentsResult, ZhihuExportQuery, ZhihuExportResult, ZhihuFeedQuery, ZhihuFeedResult, ZhihuFeedRow, ZhihuReadItem } from '@deepseek-ai/dsh-zhihu-plugin/types';
 /** Either a returned value or the Remote failure that refused it. */
 export type ZhihuPageOutcome<T> = {
     readonly ok: true;
@@ -40,6 +40,13 @@ export interface ZhihuPageFace {
      * @returns the content, or the refusal.
      */
     read(row: ZhihuFeedRow): Promise<ZhihuPageOutcome<ZhihuReadItem>>;
+    /**
+     * Read one slice of a row's root comments.
+     * @param row - the opened row whose thread to read.
+     * @param limit - comments requested; omitted reads the page's default slice.
+     * @returns the comments and the thread's size, or the refusal.
+     */
+    comments(row: ZhihuFeedRow, limit?: number): Promise<ZhihuPageOutcome<ZhihuCommentsResult>>;
     /**
      * Read the deployment settings this page applies. A Client whose Host publishes no namespace, or
      * a refused call, leaves the page on its own cap, so this reports no failure of its own.
