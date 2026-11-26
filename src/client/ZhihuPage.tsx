@@ -478,9 +478,14 @@ export function ZhihuPage(
   const query = useStore(state => state.query)
   const topic = useStore(state => state.topic) ?? ''
   const scrollTop = useStore(state => state.scrollTop)
+  const savedReading = useStore(state => state.reading)
   // A state persisted before the density switch existed restores without it, so the list starts roomy.
   const density = useStore(state => state.density) ?? 'comfortable'
-  const [opened, setOpened] = useState<ZhihuOpenedRow | null>(null)
+  // A row the reader left open comes back on the first render, so re-entering the page does not
+  // flash the list first; the read that fills its body starts in the effect below.
+  const [opened, setOpened] = useState<ZhihuOpenedRow | null>(
+    () => (savedReading === undefined ? null : { status: 'loading', row: savedReading.row }),
+  )
   /** Whether the reader is looking at their discussions instead of the lanes. */
   const [library, setLibrary] = useState(false)
   const [notice, setNotice] = useState<string | undefined>(undefined)
@@ -557,6 +562,41 @@ export function ZhihuPage(
     actions.scrolled(offset.current)
   }, [actions])
 
+  /** The opened body's scroller and the offset it was left at. */
+  const body = useRef<HTMLDivElement | null>(null)
+  const bodyOffset = useRef(savedReading?.offset ?? 0)
+  const bodySaving = useRef<ReturnType<typeof setTimeout> | null>(null)
+  /** The offset to drop the restored body at, until that body has rendered. */
+  const pendingBodyOffset = useRef<number | null>(null)
+
+  /** Persist how far into the open body the reader got, coalescing a burst of scroll events into one write. */
+  const saveBodyOffset = useCallback(() => {
+    if (bodySaving.current !== null) return
+    bodySaving.current = setTimeout(() => {
+      bodySaving.current = null
+      actions.readingScrolled(bodyOffset.current)
+    }, SCROLL_SAVE_DELAY)
+  }, [actions])
+
+  // A page that closes while a save is pending still keeps the paragraph the reader reached.
+  useEffect(() => () => {
+    if (bodySaving.current === null) return
+    clearTimeout(bodySaving.current)
+    bodySaving.current = null
+    actions.readingScrolled(bodyOffset.current)
+  }, [actions])
+
+  // The body's height is known only once its content has arrived, so the stored offset lands then.
+  useLayoutEffect(() => {
+    if (pendingBodyOffset.current === null || opened === null || opened.status === 'loading') return
+    const element = body.current
+    /* v8 ignore next -- the opened view renders its body in the same commit */
+    if (element === null) return
+    element.scrollTop = pendingBodyOffset.current
+    bodyOffset.current = element.scrollTop
+    pendingBodyOffset.current = null
+  }, [opened])
+
   // The lanes view mounts its scroller again after an opened row closes; both times it resumes the stored offset.
   useLayoutEffect(() => {
     if (opened !== null) return
@@ -594,6 +634,8 @@ export function ZhihuPage(
     setNotice(undefined)
     setMenu(undefined)
     setOpened({ status: 'loading', row })
+    // The open row is state, so closing the page and coming back shows this one again.
+    actions.readingOpened(row)
     void face.read(row).then((result) => {
       if (current !== opening.current) return
       if (result.ok) {
@@ -605,7 +647,20 @@ export function ZhihuPage(
         ? { status: 'linked', row }
         : { status: 'failed', row, failure: result.failure })
     })
-  }, [face])
+  }, [actions, face])
+
+  /** Whether the row a stored page left open has already been asked for. */
+  const resumed = useRef(false)
+
+  // The first render of a restored page shows the stored row empty; its body arrives here, and the
+  // offset below drops the reader back where they were once that body has height.
+  useEffect(() => {
+    if (resumed.current) return
+    resumed.current = true
+    if (savedReading === undefined) return
+    pendingBodyOffset.current = savedReading.offset
+    read(savedReading.row)
+  }, [read, savedReading])
 
   /** Read one slice of an opened row's thread; a stable handle keeps the section from refetching. */
   const loadComments = useCallback(
@@ -634,6 +689,7 @@ export function ZhihuPage(
     setNotice(undefined)
     setMenu(undefined)
     setOpened(null)
+    actions.readingOpened(undefined)
     setSurface('body')
     setQuote(undefined)
     setChat({ status: 'idle' })
@@ -962,8 +1018,13 @@ export function ZhihuPage(
         {surface === 'body'
           ? (
             <div
+              ref={body}
               className={css.scroller}
               data-zhihu-body=""
+              onScroll={(event) => {
+                bodyOffset.current = event.currentTarget.scrollTop
+                saveBodyOffset()
+              }}
               onMouseUp={(event) => { quoteAt(event.target) }}
               onKeyUp={(event) => {
                 // A selection made with the keyboard raises no mouse gesture.

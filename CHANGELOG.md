@@ -2,6 +2,12 @@
 
 Every tag publishes the prebuilt tarball the plugin-market entry installs, at `https://github.com/shijiezhiai/dsh-zhihu/releases/download/v<version>/dsh-zhihu.tgz`; the asset name stays `dsh-zhihu.tgz`, so a version is identified by its URL.
 
+## 1.14.0
+
+### Added
+
+- The item a reader leaves open and the paragraph they reached are part of the stored page state, so switching away from the page or reopening the panel comes back to that item instead of the list, at the offset it was left. Going back to the list forgets the item, and opening another one starts that body at its top. The body is read again, and the paragraph lands once it arrives.
+
 ## 1.13.0
 
 ### Added

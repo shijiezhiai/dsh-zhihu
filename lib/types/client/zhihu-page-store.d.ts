@@ -30,6 +30,13 @@ export interface ZhihuSearchTab {
 }
 /** How many searches the page keeps, so a long reading session does not grow the stored state. */
 export declare const ZHIHU_SEARCH_TABS = 8;
+/** The row the page shows on its own, with how far into its body the reader got. */
+export interface ZhihuPageReading {
+    /** The row the reader opened. */
+    readonly row: ZhihuFeedRow;
+    /** Vertical offset of that row's body, so a reopened page resumes the paragraph they left. */
+    readonly offset: number;
+}
 /** How one row moved when its lane was read, measured against that lane's previous read. */
 export type ZhihuRankMove = {
     readonly kind: 'new';
@@ -128,6 +135,12 @@ export interface ZhihuPageState {
      * A state persisted before comparisons existed restores without the field, so readers default it.
      */
     comparison?: readonly ZhihuQuoteSource[];
+    /**
+     * The row the reader left open and how far into its body they had read, so the page reopens on it
+     * instead of the list.
+     * A state persisted before an opened row was kept restores without the field, so readers default it.
+     */
+    reading?: ZhihuPageReading;
 }
 /** The page store's write set. A type alias, not an interface, so it satisfies `ActionsDecl`'s index signature. */
 export type ZhihuPageActions = {
@@ -201,6 +214,18 @@ export type ZhihuPageActions = {
      * @param scrollTop - the list's vertical offset.
      */
     scrolled(draft: ZhihuPageState, scrollTop: number): void;
+    /**
+     * Keep the row the page shows on its own, or forget it when the reader goes back to the list.
+     * @param draft - the current state.
+     * @param row - the row now on screen, or undefined when the list is.
+     */
+    readingOpened(draft: ZhihuPageState, row: ZhihuFeedRow | undefined): void;
+    /**
+     * Record how far into the open row's body the reader got.
+     * @param draft - the current state.
+     * @param offset - the body's vertical offset.
+     */
+    readingScrolled(draft: ZhihuPageState, offset: number): void;
     /**
      * Pack the lists tightly or roomily.
      * @param draft - the current state.
