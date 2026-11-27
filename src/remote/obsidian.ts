@@ -61,6 +61,19 @@ export function notePath(folder: string, name: string): string {
   return dir === '' ? `${name}.md` : `${dir}/${name}.md`
 }
 
+/** Name of the vault file that carries the page two machines share. */
+export const STATE_NAME = '.zhihu-page.json'
+
+/**
+ * Vault-relative path of the shared page state.
+ * @param folder - vault folder holding the notes; empty writes to the vault root.
+ * @returns the document path.
+ */
+export function statePath(folder: string): string {
+  const dir = folder.trim().replace(/^\/+/, '').replace(/\/+$/, '')
+  return dir === '' ? STATE_NAME : `${dir}/${STATE_NAME}`
+}
+
 /**
  * The note text: frontmatter the vault can query, then the body, then the
  * conclusion the reader reached about it. A capture the provider cut records
@@ -114,7 +127,8 @@ interface VaultAnswer {
  * @param target - endpoint and token.
  * @param method - what to do with the note.
  * @param path - vault-relative note path.
- * @param body - Markdown to write; omitted for a read.
+ * @param body - content to write; omitted for a read.
+ * @param media - media type the vault stores the content as.
  * @returns the status the vault answered with and the body it sent.
  * @throws ObsidianError when the endpoint is not a URL, refuses the connection or never answers.
  */
@@ -123,6 +137,7 @@ async function sendToVault(
   method: 'GET' | 'PUT',
   path: string,
   body?: string,
+  media = 'text/markdown',
 ): Promise<VaultAnswer> {
   const endpoint = `/vault/${encodeVaultPath(path)}`
   let url: URL
@@ -134,9 +149,9 @@ async function sendToVault(
   const send = url.protocol === 'https:' ? httpsRequest : httpRequest
   const headers: Record<string, string | number> = { authorization: `Bearer ${target.token}` }
   if (body === undefined) {
-    headers.accept = 'text/markdown'
+    headers.accept = media
   } else {
-    headers['content-type'] = 'text/markdown; charset=utf-8'
+    headers['content-type'] = `${media}; charset=utf-8`
     headers['content-length'] = Buffer.byteLength(body)
   }
   return await new Promise<VaultAnswer>((resolve, reject) => {
@@ -164,6 +179,53 @@ async function sendToVault(
 }
 
 /**
+ * Write one vault file with a single PUT, so the file holds either the whole content or nothing.
+ * @param target - endpoint, folder and token.
+ * @param path - vault-relative path.
+ * @param text - content to store.
+ * @param media - media type the content is written and read as.
+ * @param what - noun naming the file in a refusal.
+ * @returns the vault path that was written.
+ * @throws ObsidianError when the endpoint refuses or cannot be reached.
+ */
+async function writeVaultFile(
+  target: ObsidianTarget,
+  path: string,
+  text: string,
+  media: string,
+  what: string,
+): Promise<string> {
+  const { status } = await sendToVault(target, 'PUT', path, text, media)
+  if (status !== 200 && status !== 201 && status !== 204) {
+    throw new ObsidianError(`Obsidian refused the ${what}: HTTP ${String(status)}`)
+  }
+  return path
+}
+
+/**
+ * Read one vault file.
+ * @param target - endpoint, folder and token.
+ * @param path - vault-relative path.
+ * @param media - media type the file is read as.
+ * @param what - noun naming the file in a refusal.
+ * @returns the content, or undefined when the vault holds no file at that path.
+ * @throws ObsidianError when the endpoint answers with anything but the file or its absence.
+ */
+async function readVaultFile(
+  target: ObsidianTarget,
+  path: string,
+  media: string,
+  what: string,
+): Promise<string | undefined> {
+  const { status, text } = await sendToVault(target, 'GET', path, undefined, media)
+  if (status === 404) return undefined
+  if (status !== 200) {
+    throw new ObsidianError(`Obsidian refused the ${what}: HTTP ${String(status)}`)
+  }
+  return text
+}
+
+/**
  * Write one note with a single PUT, so the vault holds either the whole note or nothing.
  * @param target - endpoint, folder and token.
  * @param path - vault-relative note path.
@@ -172,11 +234,7 @@ async function sendToVault(
  * @throws ObsidianError when the endpoint refuses or cannot be reached.
  */
 export async function putNote(target: ObsidianTarget, path: string, text: string): Promise<string> {
-  const { status } = await sendToVault(target, 'PUT', path, text)
-  if (status !== 200 && status !== 201 && status !== 204) {
-    throw new ObsidianError(`Obsidian refused the note: HTTP ${String(status)}`)
-  }
-  return path
+  return await writeVaultFile(target, path, text, 'text/markdown', 'note')
 }
 
 /**
@@ -187,12 +245,30 @@ export async function putNote(target: ObsidianTarget, path: string, text: string
  * @throws ObsidianError when the endpoint answers with anything but the note or its absence.
  */
 export async function readNote(target: ObsidianTarget, path: string): Promise<string | undefined> {
-  const { status, text } = await sendToVault(target, 'GET', path)
-  if (status === 404) return undefined
-  if (status !== 200) {
-    throw new ObsidianError(`Obsidian refused the note: HTTP ${String(status)}`)
-  }
-  return text
+  return await readVaultFile(target, path, 'text/markdown', 'note')
+}
+
+/**
+ * Write the page state two machines share.
+ * @param target - endpoint, folder and token.
+ * @param path - vault-relative path of the state document.
+ * @param text - JSON to store.
+ * @returns the vault path that was written.
+ * @throws ObsidianError when the endpoint refuses or cannot be reached.
+ */
+export async function writeDocument(target: ObsidianTarget, path: string, text: string): Promise<string> {
+  return await writeVaultFile(target, path, text, 'application/json', 'reading state')
+}
+
+/**
+ * Read the page state another machine stored.
+ * @param target - endpoint, folder and token.
+ * @param path - vault-relative path of the state document.
+ * @returns the stored JSON, or undefined when the vault holds none.
+ * @throws ObsidianError when the endpoint answers with anything but the document or its absence.
+ */
+export async function readDocument(target: ObsidianTarget, path: string): Promise<string | undefined> {
+  return await readVaultFile(target, path, 'application/json', 'reading state')
 }
 
 /**

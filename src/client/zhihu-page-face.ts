@@ -13,6 +13,7 @@ import type {} from '@deepseek-ai/dsh-zhihu-plugin/remote'
 import type {
   ZhihuClientSettings, ZhihuCommentsResult, ZhihuExportQuery, ZhihuExportResult, ZhihuFailureTarget,
   ZhihuFeedQuery, ZhihuFeedResult, ZhihuFeedRow, ZhihuReadItem, ZhihuSearchQuery,
+  ZhihuSyncDocument, ZhihuSyncReadResult, ZhihuSyncSaveResult,
 } from '@deepseek-ai/dsh-zhihu-plugin/types'
 import { RemoteError } from '@deepseek-ai/dsh-typert-protocol'
 
@@ -73,6 +74,17 @@ export interface ZhihuPageFace {
    * @returns the settings, or undefined when the answer is unavailable.
    */
   settings(): Promise<ZhihuClientSettings | undefined>
+  /**
+   * Read the page another machine left in the reader's vault.
+   * @returns the stored document, or the refusal; a vault without one answers with no document.
+   */
+  state(): Promise<ZhihuPageOutcome<ZhihuSyncReadResult>>
+  /**
+   * Write this page's shared fields into the reader's vault.
+   * @param document - the state to store, with the instant it was written.
+   * @returns whether the vault took it, or the refusal.
+   */
+  saveState(document: ZhihuSyncDocument): Promise<ZhihuPageOutcome<ZhihuSyncSaveResult>>
   /**
    * Write the open row into the reader's Obsidian vault.
    * @param query - the capture to write; the reader supplies the body it already holds.
@@ -144,6 +156,18 @@ export function zhihuPageFace(resolveRemote: () => ClientRemote['zhihu'] | undef
       if (remote === undefined) return undefined
       const result = await remote.settings()
       return result.ok ? result.value : undefined
+    },
+    async state() {
+      const remote = resolveRemote()
+      if (remote === undefined) return unavailable('state')
+      const result = await remote.state()
+      return result.ok ? { ok: true, value: result.value } : { ok: false, failure: result.error }
+    },
+    async saveState(document) {
+      const remote = resolveRemote()
+      if (remote === undefined) return unavailable('state')
+      const result = await remote.saveState(document)
+      return result.ok ? { ok: true, value: result.value } : { ok: false, failure: result.error }
     },
     async export(query) {
       const remote = resolveRemote()

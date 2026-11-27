@@ -9,7 +9,9 @@ import type { RemoteFailure } from '@deepseek-ai/dsh-api-remotes/client'
 // Type-only: declares the 'main' seat this page renders into.
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type { PropsLocale, PropsRenderSlots, PropsRuntime, PropsStore } from '@deepseek-ai/dsh-client-ui-slots'
-import type { ZhihuExportDiscussion, ZhihuExportExcerpt, ZhihuFeedRow } from '@deepseek-ai/dsh-zhihu-plugin/types'
+import type {
+  ZhihuExportDiscussion, ZhihuExportExcerpt, ZhihuFeedRow, ZhihuSyncReadResult,
+} from '@deepseek-ai/dsh-zhihu-plugin/types'
 import type { ZhihuKey } from './locales.ts'
 import { readableBody } from './zhihu-ask.ts'
 import { copyZhihuText } from './zhihu-clipboard.ts'
@@ -37,7 +39,17 @@ import {
   type ZhihuQuoteSource,
 } from './zhihu-quote.ts'
 import { ZhihuQuoteBox } from './ZhihuQuote.tsx'
-import type { ZhihuPageFace } from './zhihu-page-face.ts'
+import type { ZhihuPageFace, ZhihuPageOutcome } from './zhihu-page-face.ts'
+import {
+  readSyncMarker,
+  SYNC_PUSH_DELAY,
+  writeSyncMarker,
+  zhihuSyncDocument,
+  zhihuSyncEqual,
+  zhihuSyncIsNewer,
+  zhihuSyncJson,
+  zhihuSyncedState,
+} from './zhihu-page-sync.ts'
 import {
   zhihuDiscussionEntry,
   zhihuDiscussionSession,
@@ -479,6 +491,8 @@ export function ZhihuPage(
   const topic = useStore(state => state.topic) ?? ''
   const scrollTop = useStore(state => state.scrollTop)
   const savedReading = useStore(state => state.reading)
+  /** The fields this page shares with the reader's other machines. */
+  const synced = useStore(state => zhihuSyncedState(state), zhihuSyncEqual)
   // A state persisted before the density switch existed restores without it, so the list starts roomy.
   const density = useStore(state => state.density) ?? 'comfortable'
   // A row the reader left open comes back on the first render, so re-entering the page does not
@@ -568,6 +582,10 @@ export function ZhihuPage(
   const bodySaving = useRef<ReturnType<typeof setTimeout> | null>(null)
   /** The offset to drop the restored body at, until that body has rendered. */
   const pendingBodyOffset = useRef<number | null>(null)
+  /** Whether the vault's copy has been read, so this page cannot write over it first. */
+  const [hydrated, setHydrated] = useState(false)
+  /** The shared state the vault already holds, or undefined while this page has written none. */
+  const lastSynced = useRef<string | undefined>(undefined)
 
   /** Persist how far into the open body the reader got, coalescing a burst of scroll events into one write. */
   const saveBodyOffset = useCallback(() => {
@@ -628,6 +646,9 @@ export function ZhihuPage(
     fill(true)
   })
 
+  /** The row key the page has already shown, so a stored page resumes it once and a newer one again. */
+  const resumed = useRef<string | undefined>(undefined)
+
   const read = useCallback((row: ZhihuFeedRow) => {
     const current = opening.current + 1
     opening.current = current
@@ -636,6 +657,8 @@ export function ZhihuPage(
     setOpened({ status: 'loading', row })
     // The open row is state, so closing the page and coming back shows this one again.
     actions.readingOpened(row)
+    // This row is on screen because the reader asked for it, so the resume below leaves it alone.
+    resumed.current = zhihuRowKey(row)
     void face.read(row).then((result) => {
       if (current !== opening.current) return
       if (result.ok) {
@@ -649,18 +672,58 @@ export function ZhihuPage(
     })
   }, [actions, face])
 
-  /** Whether the row a stored page left open has already been asked for. */
-  const resumed = useRef(false)
-
   // The first render of a restored page shows the stored row empty; its body arrives here, and the
   // offset below drops the reader back where they were once that body has height.
   useEffect(() => {
-    if (resumed.current) return
-    resumed.current = true
     if (savedReading === undefined) return
+    // The key, not a one-shot flag, so a row taken over from the vault is read as well.
+    const key = zhihuRowKey(savedReading.row)
+    if (resumed.current === key) return
+    resumed.current = key
     pendingBodyOffset.current = savedReading.offset
     read(savedReading.row)
   }, [read, savedReading])
+
+  // The page the reader's other machine left arrives once, before this one writes anything back,
+  // so a slow vault cannot replace the newer copy with the older one this machine holds.
+  useEffect(() => {
+    let live = true
+    /** Take over the stored page, then let this one write. */
+    const adopt = (result: ZhihuPageOutcome<ZhihuSyncReadResult>): void => {
+      const document = result.ok ? result.value.document : undefined
+      if (document !== undefined && zhihuSyncIsNewer(document, readSyncMarker())) {
+        writeSyncMarker(document.savedAt)
+        lastSynced.current = zhihuSyncJson(document.state)
+        actions.adopted(document.state)
+      }
+      setHydrated(true)
+    }
+    void face.state().then((result) => {
+      if (live) adopt(result)
+    }, () => {
+      // A read this Client cannot describe leaves the page on the state this machine holds.
+      if (live) setHydrated(true)
+    })
+    return () => { live = false }
+  }, [actions, face])
+
+  // Every change of the shared fields reaches the vault after a pause, so one scroll writes once.
+  useEffect(() => {
+    if (!hydrated) return
+    const json = zhihuSyncJson(synced)
+    if (json === lastSynced.current) return
+    const savedAt = new Date().toISOString()
+    const timer = setTimeout(() => {
+      void face.saveState(zhihuSyncDocument(synced, savedAt)).then((result) => {
+        if (!result.ok || !result.value.saved) return
+        lastSynced.current = json
+        writeSyncMarker(savedAt)
+      }, () => {
+        // A write this Client cannot describe leaves the next change to try again.
+      })
+    }, SYNC_PUSH_DELAY)
+    return () => { clearTimeout(timer) }
+  }, [face, hydrated, synced])
 
   /** Read one slice of an opened row's thread; a stable handle keeps the section from refetching. */
   const loadComments = useCallback(

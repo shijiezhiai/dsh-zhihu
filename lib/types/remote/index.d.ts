@@ -2,7 +2,7 @@
 import { Context } from '@deepseek-ai/cordis';
 import z from '@deepseek-ai/schemastery';
 import { TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol';
-import type { ZhihuClientSettings, ZhihuCommentsQuery, ZhihuCommentsResult, ZhihuExportQuery, ZhihuExportResult, ZhihuFeedQuery, ZhihuFeedResult, ZhihuReadItem, ZhihuReadQuery, ZhihuRepliesQuery, ZhihuSearchQuery, ZhihuSearchResult } from './types.ts';
+import type { ZhihuClientSettings, ZhihuCommentsQuery, ZhihuCommentsResult, ZhihuExportQuery, ZhihuExportResult, ZhihuFeedQuery, ZhihuFeedResult, ZhihuReadItem, ZhihuReadQuery, ZhihuRepliesQuery, ZhihuSearchQuery, ZhihuSearchResult, ZhihuSyncDocument, ZhihuSyncReadResult, ZhihuSyncSaveResult } from './types.ts';
 export type * from './types.ts';
 declare module '@deepseek-ai/cordis' {
     interface Context {
@@ -36,6 +36,17 @@ export default class ZhihuController extends TypertRemoteService {
      * @returns the passage cap this deployment sets.
      */
     settings(): Promise<ZhihuClientSettings>;
+    /**
+     * Read the page state another machine stored in the vault.
+     * @returns the stored document; a vault that holds none or cannot be reached answers with nothing.
+     */
+    state(): Promise<ZhihuSyncReadResult>;
+    /**
+     * Store the page state so another machine opens the same page.
+     * @param document - the fields two machines share, with the format version and write instant.
+     * @returns whether the vault took the document; a vault that refuses leaves the local copy in charge.
+     */
+    saveState(document: ZhihuSyncDocument): Promise<ZhihuSyncSaveResult>;
     /**
      * Read one bounded feed page from the selected provider.
      * @param request - feed kind and an optional item limit.
@@ -84,6 +95,11 @@ export default class ZhihuController extends TypertRemoteService {
      * @returns the token bytes.
      */
     private obsidianToken;
+    /**
+     * Read the Local REST API token, without naming a refusal.
+     * @returns the token bytes, or undefined when the deployment stores none.
+     */
+    private storedObsidianToken;
     /**
      * Apply this deployment's limits to one wire request.
      * @param request - request as the Client sent it.

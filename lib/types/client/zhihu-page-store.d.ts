@@ -8,7 +8,7 @@
  */
 import { type EngineStoreHandle } from '@deepseek-ai/dsh-client-store';
 import type { SessionId } from '@deepseek-ai/dsh-session/types';
-import type { ZhihuFeedRow } from '@deepseek-ai/dsh-zhihu-plugin/types';
+import type { ZhihuFeedRow, ZhihuSyncMove, ZhihuSyncState } from '@deepseek-ai/dsh-zhihu-plugin/types';
 import type { ZhihuQuoteSource } from './zhihu-quote.ts';
 /** The lanes the page pages through the feed Remote. */
 export type ZhihuFeedTab = 'recommend' | 'hot' | 'follow' | 'topic';
@@ -38,15 +38,7 @@ export interface ZhihuPageReading {
     readonly offset: number;
 }
 /** How one row moved when its lane was read, measured against that lane's previous read. */
-export type ZhihuRankMove = {
-    readonly kind: 'new';
-} | {
-    readonly kind: 'up';
-    readonly places: number;
-} | {
-    readonly kind: 'down';
-    readonly places: number;
-};
+export type ZhihuRankMove = ZhihuSyncMove;
 /** One row's discussion, as the page lists it again after a reload. */
 export interface ZhihuDiscussionEntry {
     /** The Session the discussion runs in. */
@@ -226,6 +218,12 @@ export type ZhihuPageActions = {
      * @param offset - the body's vertical offset.
      */
     readingScrolled(draft: ZhihuPageState, offset: number): void;
+    /**
+     * Take over the page another machine left, so both machines read the same lane and the same row.
+     * @param draft - the current state.
+     * @param state - the fields the other machine shared.
+     */
+    adopted(draft: ZhihuPageState, state: ZhihuSyncState): void;
     /**
      * Pack the lists tightly or roomily.
      * @param draft - the current state.

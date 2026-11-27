@@ -25,7 +25,12 @@ declare module '@deepseek-ai/dsh-typert-protocol' {
  * for, `search`, or `comments` when the call read a reply thread. One member keeps every failure
  * code's details readable by the same renderer.
  */
-export type ZhihuFailureTarget = ZhihuFeedQuery['kind'] | ZhihuReadQuery['kind'] | 'search' | 'comments'
+export type ZhihuFailureTarget =
+  | ZhihuFeedQuery['kind']
+  | ZhihuReadQuery['kind']
+  | 'search'
+  | 'comments'
+  | 'state'
 
 /** Every failure code this Remote raises from a classified seam error. */
 export type ZhihuRemoteFailureCode =
@@ -223,4 +228,78 @@ export interface ZhihuExportQuery {
 export interface ZhihuExportResult {
   /** Vault-relative path of the note. */
   readonly path: string
+}
+
+/** Every lane the shared page document can name. */
+export type ZhihuSyncTab = 'recommend' | 'hot' | 'follow' | 'topic' | 'search'
+
+/** How tightly the shared page document packs its lists. */
+export type ZhihuSyncDensity = 'compact' | 'comfortable'
+
+/** How one row moved in the latest read of its lane. */
+export type ZhihuSyncMove =
+  | { readonly kind: 'new' }
+  | { readonly kind: 'up'; readonly places: number }
+  | { readonly kind: 'down'; readonly places: number }
+
+/** One discussion as the shared page document carries it. */
+export interface ZhihuSyncDiscussion {
+  /** The Session the discussion runs in, as a stored id rather than a Session handle. */
+  readonly sessionId: string
+  /** The row the discussion opened from, so another machine reopens the same item. */
+  readonly row: ZhihuFeedRow
+  /** When it opened, in epoch milliseconds. */
+  readonly openedAt: number
+}
+
+/** The row a page left open and how far into its body the reader got. */
+export interface ZhihuSyncReading {
+  /** The row the reader opened. */
+  readonly row: ZhihuFeedRow
+  /** Vertical offset of that row's body, so another machine resumes the same paragraph. */
+  readonly offset: number
+}
+
+/**
+ * The page fields two machines share: the lane on screen, how the lists pack, what each row
+ * discusses, how the lanes moved, and which row a reader left open. Loaded rows and search hits
+ * stay on the machine that read them.
+ */
+export interface ZhihuSyncState {
+  /** The lane on screen. */
+  readonly tab: ZhihuSyncTab
+  /** Keyword the topic lane reads. */
+  readonly topic: string
+  /** How tightly the lists pack their rows. */
+  readonly density: ZhihuSyncDensity
+  /** Vertical offset of the list, so the next machine opens at the same place. */
+  readonly scrollTop: number
+  /** The discussion each row holds, keyed by `<kind>:<id>`; a bare string is a Session id. */
+  readonly discussions: Readonly<Record<string, ZhihuSyncDiscussion | string>>
+  /** How each row moved in the latest read of its lane, keyed by lane then by row. */
+  readonly moves: Readonly<Record<string, Readonly<Record<string, ZhihuSyncMove>>>>
+  /** The row the reader left open, when one is. */
+  readonly reading?: ZhihuSyncReading
+}
+
+/** One page as the vault stores it. */
+export interface ZhihuSyncDocument {
+  /** Format version; a reader ignores a document written in a version it does not know. */
+  readonly version: number
+  /** ISO instant of the write, so two machines resolve to the newer copy. */
+  readonly savedAt: string
+  /** The fields two machines share. */
+  readonly state: ZhihuSyncState
+}
+
+/** Answer to a request for the stored page. */
+export interface ZhihuSyncReadResult {
+  /** The stored page; omitted when the vault holds none. */
+  readonly document?: ZhihuSyncDocument
+}
+
+/** Answer to a write of the stored page. */
+export interface ZhihuSyncSaveResult {
+  /** True when the vault took the document; false leaves the local copy in charge. */
+  readonly saved: boolean
 }

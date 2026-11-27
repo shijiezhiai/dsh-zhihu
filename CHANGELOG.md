@@ -2,6 +2,12 @@
 
 Every tag publishes the prebuilt tarball the plugin-market entry installs, at `https://github.com/shijiezhiai/dsh-zhihu/releases/download/v<version>/dsh-zhihu.tgz`; the asset name stays `dsh-zhihu.tgz`, so a version is identified by its URL.
 
+## 1.15.0
+
+### Added
+
+- The page two machines share: the lane on screen, the packed or roomy setting, every row's discussion, the rank marks and the row a reader left open with the paragraph they reached are written into the reader's Obsidian vault as one small JSON file, `.zhihu-page.json` in the export folder. A page that opens reads that file first and takes over the newer copy, then writes back after each change settles; `remote.state` and `remote.saveState` carry it, the Host checks the format version and the write instant, and a vault it cannot reach leaves the page on this browser's own storage.
+
 ## 1.14.0
 
 ### Added

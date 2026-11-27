@@ -9,9 +9,10 @@ import type {
   ZhihuClientSettings, ZhihuCommentsQuery, ZhihuCommentsResult, ZhihuExportQuery, ZhihuExportResult,
   ZhihuFailureTarget, ZhihuFeedQuery,
   ZhihuFeedResult, ZhihuReadItem, ZhihuReadQuery, ZhihuRemoteFailureCode, ZhihuRepliesQuery,
-  ZhihuSearchQuery, ZhihuSearchResult,
+  ZhihuSearchQuery, ZhihuSearchResult, ZhihuSyncDocument, ZhihuSyncReadResult, ZhihuSyncSaveResult,
 } from './types.ts'
-import { fileCapture, noteName, notePath, ObsidianError } from './obsidian.ts'
+import { fileCapture, noteName, notePath, readDocument, statePath, writeDocument, ObsidianError } from './obsidian.ts'
+import { assertStateDocument, readStateDocument } from './state.ts'
 
 export type * from './types.ts'
 
@@ -111,6 +112,50 @@ export default class ZhihuController extends TypertRemoteService {
   @Remote
   settings(): Promise<ZhihuClientSettings> {
     return Promise.resolve({ quoteMaxChars: this.config.quoteMaxChars })
+  }
+
+  /**
+   * Read the page state another machine stored in the vault.
+   * @returns the stored document; a vault that holds none or cannot be reached answers with nothing.
+   */
+  @Remote
+  async state(): Promise<ZhihuSyncReadResult> {
+    const token = await this.storedObsidianToken()
+    if (token === undefined) return {}
+    const target = { url: this.config.obsidianUrl, folder: this.config.obsidianFolder, token }
+    let stored: string | undefined
+    try {
+      stored = await readDocument(target, statePath(this.config.obsidianFolder))
+    } catch (error) {
+      /* v8 ignore next 3 -- the vault reports every refusal as ObsidianError */
+      if (error instanceof ObsidianError) return {}
+      /* v8 ignore next -- the rethrow only carries a failure readNote never reports */
+      throw error
+    }
+    const document = stored === undefined ? undefined : readStateDocument(stored)
+    return document === undefined ? {} : { document }
+  }
+
+  /**
+   * Store the page state so another machine opens the same page.
+   * @param document - the fields two machines share, with the format version and write instant.
+   * @returns whether the vault took the document; a vault that refuses leaves the local copy in charge.
+   */
+  @Remote
+  async saveState(document: ZhihuSyncDocument): Promise<ZhihuSyncSaveResult> {
+    assertStateDocument(document)
+    const token = await this.storedObsidianToken()
+    if (token === undefined) return { saved: false }
+    const target = { url: this.config.obsidianUrl, folder: this.config.obsidianFolder, token }
+    try {
+      await writeDocument(target, statePath(this.config.obsidianFolder), JSON.stringify(document))
+    } catch (error) {
+      /* v8 ignore next 3 -- the vault reports every refusal as ObsidianError */
+      if (error instanceof ObsidianError) return { saved: false }
+      /* v8 ignore next -- the rethrow only carries a failure readNote never reports */
+      throw error
+    }
+    return { saved: true }
   }
 
   /**
@@ -260,18 +305,27 @@ export default class ZhihuController extends TypertRemoteService {
    * @returns the token bytes.
    */
   private async obsidianToken(kind: ZhihuExportQuery['kind']): Promise<string> {
-    const credentials = this.ctx.get('credentials')
-    const resolved = credentials === undefined
-      ? undefined
-      : await credentials.resolve(credentialRef(this.config.obsidianCredential))
-    if (resolved === undefined) {
+    const token = await this.storedObsidianToken()
+    if (token === undefined) {
       throw new RemoteError(
         'zhihu/export-failed',
         `no Obsidian token is stored under ${this.config.obsidianCredential}`,
         { kind },
       )
     }
-    return resolved.value
+    return token
+  }
+
+  /**
+   * Read the Local REST API token, without naming a refusal.
+   * @returns the token bytes, or undefined when the deployment stores none.
+   */
+  private async storedObsidianToken(): Promise<string | undefined> {
+    const credentials = this.ctx.get('credentials')
+    const resolved = credentials === undefined
+      ? undefined
+      : await credentials.resolve(credentialRef(this.config.obsidianCredential))
+    return resolved?.value
   }
 
   /**

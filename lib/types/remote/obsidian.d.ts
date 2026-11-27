@@ -32,6 +32,14 @@ export declare function noteName(title: string, id: string): string;
  * @returns `<folder>/<name>.md`, or `<name>.md` for a root folder.
  */
 export declare function notePath(folder: string, name: string): string;
+/** Name of the vault file that carries the page two machines share. */
+export declare const STATE_NAME = ".zhihu-page.json";
+/**
+ * Vault-relative path of the shared page state.
+ * @param folder - vault folder holding the notes; empty writes to the vault root.
+ * @returns the document path.
+ */
+export declare function statePath(folder: string): string;
 /**
  * The note text: frontmatter the vault can query, then the body, then the
  * conclusion the reader reached about it. A capture the provider cut records
@@ -70,6 +78,23 @@ export declare function putNote(target: ObsidianTarget, path: string, text: stri
  * @throws ObsidianError when the endpoint answers with anything but the note or its absence.
  */
 export declare function readNote(target: ObsidianTarget, path: string): Promise<string | undefined>;
+/**
+ * Write the page state two machines share.
+ * @param target - endpoint, folder and token.
+ * @param path - vault-relative path of the state document.
+ * @param text - JSON to store.
+ * @returns the vault path that was written.
+ * @throws ObsidianError when the endpoint refuses or cannot be reached.
+ */
+export declare function writeDocument(target: ObsidianTarget, path: string, text: string): Promise<string>;
+/**
+ * Read the page state another machine stored.
+ * @param target - endpoint, folder and token.
+ * @param path - vault-relative path of the state document.
+ * @returns the stored JSON, or undefined when the vault holds none.
+ * @throws ObsidianError when the endpoint answers with anything but the document or its absence.
+ */
+export declare function readDocument(target: ObsidianTarget, path: string): Promise<string | undefined>;
 /**
  * File one capture: the whole note, or one more section added to the note already there.
  * @param target - endpoint, folder and token.

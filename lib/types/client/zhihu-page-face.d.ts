@@ -8,7 +8,7 @@
  */
 import type { ClientRemote } from '@deepseek-ai/dsh-api-gateway/client';
 import type { RemoteFailure } from '@deepseek-ai/dsh-api-remotes/client';
-import type { ZhihuClientSettings, ZhihuCommentsResult, ZhihuExportQuery, ZhihuExportResult, ZhihuFeedQuery, ZhihuFeedResult, ZhihuFeedRow, ZhihuReadItem } from '@deepseek-ai/dsh-zhihu-plugin/types';
+import type { ZhihuClientSettings, ZhihuCommentsResult, ZhihuExportQuery, ZhihuExportResult, ZhihuFeedQuery, ZhihuFeedResult, ZhihuFeedRow, ZhihuReadItem, ZhihuSyncDocument, ZhihuSyncReadResult, ZhihuSyncSaveResult } from '@deepseek-ai/dsh-zhihu-plugin/types';
 /** Either a returned value or the Remote failure that refused it. */
 export type ZhihuPageOutcome<T> = {
     readonly ok: true;
@@ -60,6 +60,17 @@ export interface ZhihuPageFace {
      * @returns the settings, or undefined when the answer is unavailable.
      */
     settings(): Promise<ZhihuClientSettings | undefined>;
+    /**
+     * Read the page another machine left in the reader's vault.
+     * @returns the stored document, or the refusal; a vault without one answers with no document.
+     */
+    state(): Promise<ZhihuPageOutcome<ZhihuSyncReadResult>>;
+    /**
+     * Write this page's shared fields into the reader's vault.
+     * @param document - the state to store, with the instant it was written.
+     * @returns whether the vault took it, or the refusal.
+     */
+    saveState(document: ZhihuSyncDocument): Promise<ZhihuPageOutcome<ZhihuSyncSaveResult>>;
     /**
      * Write the open row into the reader's Obsidian vault.
      * @param query - the capture to write; the reader supplies the body it already holds.

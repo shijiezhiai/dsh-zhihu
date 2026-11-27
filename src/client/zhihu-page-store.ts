@@ -8,7 +8,12 @@
  */
 import { defineStore, type EngineStoreHandle } from '@deepseek-ai/dsh-client-store'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
-import type { ZhihuFeedRow } from '@deepseek-ai/dsh-zhihu-plugin/types'
+import type {
+  ZhihuFeedRow,
+  ZhihuSyncDiscussion,
+  ZhihuSyncMove,
+  ZhihuSyncState,
+} from '@deepseek-ai/dsh-zhihu-plugin/types'
 import type { ZhihuQuoteSource } from './zhihu-quote.ts'
 import { zhihuRowKey } from './zhihu-row-key.ts'
 
@@ -47,10 +52,7 @@ export interface ZhihuPageReading {
 }
 
 /** How one row moved when its lane was read, measured against that lane's previous read. */
-export type ZhihuRankMove =
-  | { readonly kind: 'new' }
-  | { readonly kind: 'up'; readonly places: number }
-  | { readonly kind: 'down'; readonly places: number }
+export type ZhihuRankMove = ZhihuSyncMove
 
 /** One row's discussion, as the page lists it again after a reload. */
 export interface ZhihuDiscussionEntry {
@@ -93,6 +95,42 @@ export function zhihuDiscussionEntry(record: ZhihuDiscussionRecord | undefined):
 export function zhihuDiscussionSession(record: ZhihuDiscussionRecord | undefined): SessionId | undefined {
   if (record === undefined) return undefined
   return typeof record === 'string' ? record as SessionId : record.sessionId
+}
+
+/** The lanes the page pages through the feed Remote, in the order state takes them over. */
+const FEED_TABS: readonly ZhihuFeedTab[] = ['recommend', 'hot', 'follow', 'topic']
+
+/**
+ * Take over the discussions another machine recorded, keeping each one's Session.
+ * @param discussions - shared discussions, or the bare Session id a legacy copy wrote.
+ * @returns the records this store holds.
+ */
+function adoptedDiscussions(
+  discussions: Readonly<Record<string, ZhihuSyncDiscussion | string>>,
+): Record<string, ZhihuDiscussionRecord> {
+  const records: Record<string, ZhihuDiscussionRecord> = {}
+  for (const [key, record] of Object.entries(discussions)) {
+    records[key] = typeof record === 'string'
+      ? record
+      : { ...record, sessionId: record.sessionId as SessionId }
+  }
+  return records
+}
+
+/**
+ * Keep the lane moves another machine recorded for the lanes this page pages through.
+ * @param moves - shared moves, keyed by lane and then by row key.
+ * @returns the moves of the feed lanes.
+ */
+function adoptedMoves(
+  moves: ZhihuSyncState['moves'],
+): Partial<Record<ZhihuFeedTab, Readonly<Record<string, ZhihuRankMove>>>> {
+  const lanes: Partial<Record<ZhihuFeedTab, Readonly<Record<string, ZhihuRankMove>>>> = {}
+  for (const lane of FEED_TABS) {
+    const laneMoves = moves[lane]
+    if (laneMoves !== undefined) lanes[lane] = laneMoves
+  }
+  return lanes
 }
 
 /** The page's persisted state. */
@@ -242,6 +280,12 @@ export type ZhihuPageActions = {
    * @param offset - the body's vertical offset.
    */
   readingScrolled(draft: ZhihuPageState, offset: number): void
+  /**
+   * Take over the page another machine left, so both machines read the same lane and the same row.
+   * @param draft - the current state.
+   * @param state - the fields the other machine shared.
+   */
+  adopted(draft: ZhihuPageState, state: ZhihuSyncState): void
   /**
    * Pack the lists tightly or roomily.
    * @param draft - the current state.
@@ -437,6 +481,16 @@ export function createZhihuPageStore(): ZhihuPageStore {
       readingScrolled: (draft, offset) => {
         if (draft.reading === undefined) return
         draft.reading = { row: draft.reading.row, offset }
+      },
+      adopted: (draft, state) => {
+        draft.tab = state.tab
+        draft.topic = state.topic
+        draft.density = state.density
+        draft.scrollTop = state.scrollTop
+        draft.discussions = adoptedDiscussions(state.discussions)
+        draft.moves = adoptedMoves(state.moves)
+        if (state.reading === undefined) delete draft.reading
+        else draft.reading = state.reading
       },
       densified: (draft, density) => { draft.density = density },
       remember: (draft, key, entry) => {
