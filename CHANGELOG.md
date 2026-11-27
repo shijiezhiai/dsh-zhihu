@@ -2,6 +2,12 @@
 
 Every tag publishes the prebuilt tarball the plugin-market entry installs, at `https://github.com/shijiezhiai/dsh-zhihu/releases/download/v<version>/dsh-zhihu.tgz`; the asset name stays `dsh-zhihu.tgz`, so a version is identified by its URL.
 
+## 1.19.1
+
+### Changed
+
+- The passage bubble no longer rises on a plain click. Reading through the body used to quote whatever paragraph the click landed on, so the bubble with its questions covered the text every time the reader clicked anywhere; a selection or a ⌘-click that names one block raises it now, several such blocks merge into one quote, and a plain click gives it up.
+
 ## 1.19.0
 
 ### Added

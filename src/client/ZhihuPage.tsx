@@ -996,9 +996,13 @@ export function ZhihuPage(
    * Quote the block the reader pointed at, or take it back when the quote already carries it.
    * @param target - the element the gesture landed on.
    */
-  const quoteAt = useCallback((target: EventTarget | null): void => {
-    const next = readPassage(target, quoteLimit)
-    if (next === undefined) return
+  const quoteAt = useCallback((target: EventTarget | null, block: boolean): void => {
+    const next = readPassage(target, quoteLimit, block)
+    if (next === undefined) {
+      // A gesture that names no text leaves whatever the reader had quoted; clicking the body is how they read on.
+      setQuote(undefined)
+      return
+    }
     setQuote((current) => {
       const segments = toggleSegment(current?.segments ?? [], next.text)
       if (segments.length === 0) return undefined
@@ -1182,10 +1186,10 @@ export function ZhihuPage(
                 bodyOffset.current = event.currentTarget.scrollTop
                 saveBodyOffset()
               }}
-              onMouseUp={(event) => { quoteAt(event.target) }}
+              onMouseUp={(event) => { quoteAt(event.target, event.metaKey || event.ctrlKey) }}
               onKeyUp={(event) => {
                 // A selection made with the keyboard raises no mouse gesture.
-                if (event.shiftKey) quoteAt(event.target)
+                if (event.shiftKey) quoteAt(event.target, true)
               }}
             >
               <ZhihuOpenedContent

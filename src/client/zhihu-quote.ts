@@ -176,13 +176,14 @@ function areaOf(target: EventTarget | null): QuoteViewport {
 }
 
 /**
- * Read the passage the reader just pointed at: the text they selected, or the
- * block they clicked when nothing is selected.
+ * Read the passage the reader just pointed at: the text they selected, or the block a modified
+ * click named. A plain click names nothing, so reading through the body raises no bubble.
  * @param target - the element the gesture landed on.
  * @param maxChars - longest passage this deployment quotes.
+ * @param block - whether the gesture asked for the block under it; a click carrying the platform modifier.
  * @returns the passage and where its bubble goes, or undefined when the gesture named no text.
  */
-export function readPassage(target: EventTarget | null, maxChars: number): ZhihuPassage | undefined {
+export function readPassage(target: EventTarget | null, maxChars: number, block = false): ZhihuPassage | undefined {
   const area = areaOf(target)
   const selection = window.getSelection()
   if (selection !== null && !selection.isCollapsed && selection.rangeCount > 0) {
@@ -190,11 +191,12 @@ export function readPassage(target: EventTarget | null, maxChars: number): Zhihu
     if (text === undefined) return undefined
     return { text, ...placePassage(selection.getRangeAt(0).getBoundingClientRect(), area) }
   }
-  const block = target instanceof Element ? target.closest(BLOCK_SELECTOR) : null
-  if (block === null) return undefined
-  const text = passageText(blockText(block), maxChars)
+  if (!block) return undefined
+  const element = target instanceof Element ? target.closest(BLOCK_SELECTOR) : null
+  if (element === null) return undefined
+  const text = passageText(blockText(element), maxChars)
   if (text === undefined) return undefined
-  return { text, ...placePassage(block.getBoundingClientRect(), area) }
+  return { text, ...placePassage(element.getBoundingClientRect(), area) }
 }
 
 /**

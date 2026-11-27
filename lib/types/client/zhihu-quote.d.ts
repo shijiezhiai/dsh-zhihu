@@ -84,13 +84,14 @@ export declare function placePassage(rect: QuoteRect, area: QuoteViewport): {
     width: number;
 };
 /**
- * Read the passage the reader just pointed at: the text they selected, or the
- * block they clicked when nothing is selected.
+ * Read the passage the reader just pointed at: the text they selected, or the block a modified
+ * click named. A plain click names nothing, so reading through the body raises no bubble.
  * @param target - the element the gesture landed on.
  * @param maxChars - longest passage this deployment quotes.
+ * @param block - whether the gesture asked for the block under it; a click carrying the platform modifier.
  * @returns the passage and where its bubble goes, or undefined when the gesture named no text.
  */
-export declare function readPassage(target: EventTarget | null, maxChars: number): ZhihuPassage | undefined;
+export declare function readPassage(target: EventTarget | null, maxChars: number, block?: boolean): ZhihuPassage | undefined;
 /**
  * Ask about one passage, quoting it so the model can find it in the body.
  * @param t - copy of the Zhihu namespace.
