@@ -85,6 +85,12 @@ export interface ZhihuDiscussionSeat {
      */
     open(row: ZhihuFeedRow, known: string | undefined): Promise<ZhihuDiscussion>;
     /**
+     * Read the conversation a remembered Session holds, without opening the discussion again.
+     * @param known - the identity a previous visit retained.
+     * @returns every settled turn in order, empty when the catalog no longer lists it.
+     */
+    transcript(known: string): readonly ZhihuDiscussionTurn[];
+    /**
      * The step the current or latest open reached.
      * @returns the stage it stopped at, for a pane that has waited too long.
      */

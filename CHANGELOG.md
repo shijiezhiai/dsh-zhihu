@@ -2,6 +2,12 @@
 
 Every tag publishes the prebuilt tarball the plugin-market entry installs, at `https://github.com/shijiezhiai/dsh-zhihu/releases/download/v<version>/dsh-zhihu.tgz`; the asset name stays `dsh-zhihu.tgz`, so a version is identified by its URL.
 
+## 1.16.0
+
+### Added
+
+- An export carries the item's discussion after the reader closed the row and reopened it: the page reads the conversation back from the Session it remembered for that row, holds it only for the read, and files it under the note body. The conversation the open Discussion segment holds is still filed without that read. A Session the Host no longer lists, or one this Client cannot read, leaves the note with its body alone.
+
 ## 1.15.1
 
 ### Fixed

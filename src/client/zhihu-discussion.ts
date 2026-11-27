@@ -135,6 +135,12 @@ export interface ZhihuDiscussionSeat {
    */
   open(row: ZhihuFeedRow, known: string | undefined): Promise<ZhihuDiscussion>
   /**
+   * Read the conversation a remembered Session holds, without opening the discussion again.
+   * @param known - the identity a previous visit retained.
+   * @returns every settled turn in order, empty when the catalog no longer lists it.
+   */
+  transcript(known: string): readonly ZhihuDiscussionTurn[]
+  /**
    * The step the current or latest open reached.
    * @returns the stage it stopped at, for a pane that has waited too long.
    */
@@ -274,6 +280,14 @@ export function createZhihuDiscussionSeat(sessions: ZhihuDiscussionSessions): Zh
         transcript: () => transcriptOf(reference.binding.eventSource),
         release: () => { reference.release() },
       }
+    },
+    transcript(known) {
+      // A remembered identity the catalog no longer lists has no conversation left to file.
+      if (sessions.list.getSnapshot().byId[known as SessionId] === undefined) return []
+      const reference = sessions.retain(known as SessionId, { source: 'zhihuDiscussion' })
+      const turns = transcriptOf(reference.binding.eventSource)
+      reference.release()
+      return turns
     },
     stage: () => reached,
   }

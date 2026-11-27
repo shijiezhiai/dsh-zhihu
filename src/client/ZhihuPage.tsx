@@ -24,6 +24,7 @@ import {
   zhihuDiscussionPrompt,
   type ZhihuDiscussion,
   type ZhihuDiscussionSeat,
+  type ZhihuDiscussionTurn,
 } from './zhihu-discussion.ts'
 import { zhihuRowKey } from './zhihu-row-key.ts'
 import { zhihuPanelFailureLine } from './zhihu-panel-failure.ts'
@@ -886,17 +887,33 @@ export function ZhihuPage(
   }, [chat, discuss, instruct, t])
 
   /**
-   * The discussion the open row holds, for the note the reader files.
+   * The turns one row's discussion holds: the pane's own while it is that row, otherwise the
+   * conversation its Session kept after the row was closed.
+   * @param row - the row whose discussion is read.
+   * @returns every settled turn in order, empty when the row never held one.
+   */
+  const settledTurns = useCallback((row: ZhihuFeedRow): readonly ZhihuDiscussionTurn[] => {
+    const seat = chat.status === 'ready' ? chat.seat : undefined
+    if (seat !== undefined && opened !== null && zhihuRowKey(opened.row) === zhihuRowKey(row)) {
+      return seat.transcript()
+    }
+    const known = zhihuDiscussionSession(discussions?.[zhihuRowKey(row)])
+    return known === undefined ? [] : discussion.transcript(known)
+  }, [chat, discussion, discussions, opened])
+
+  /**
+   * The discussion one row carries, for the note the reader files.
+   * @param row - the row being filed.
    * @returns the section to file under the body, or undefined while no turn settled.
    */
-  const conclusion = useCallback((): { heading: string; text: string } | undefined => {
-    const turns = chat.status === 'ready' ? chat.seat?.transcript() ?? [] : []
+  const conclusion = useCallback((row: ZhihuFeedRow): { heading: string; text: string } | undefined => {
+    const turns = settledTurns(row)
     if (turns.length === 0) return undefined
     const text = turns
       .map(turn => `${turn.role === 'user' ? t('export.question') : t('export.answer')}\n\n${turn.text}`)
       .join('\n\n')
     return { heading: t('export.discussion'), text }
-  }, [chat, t])
+  }, [settledTurns, t])
 
   /**
    * Quote the block the reader pointed at, or take it back when the quote already carries it.
@@ -986,7 +1003,7 @@ export function ZhihuPage(
           window.open(row.url, '_blank', 'noopener')
           return
         case 'export': {
-          const filed = conclusion()
+          const filed = conclusion(row)
           file(filed === undefined ? {} : { discussion: filed })
           return
         }
