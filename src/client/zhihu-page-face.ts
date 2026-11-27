@@ -15,6 +15,7 @@ import type {
   ZhihuFeedQuery, ZhihuFeedResult, ZhihuFeedRow, ZhihuFeedSort, ZhihuFeedTimeWindow, ZhihuReadItem,
   ZhihuSearchQuery,
   ZhihuSyncDocument, ZhihuSyncReadResult, ZhihuSyncSaveResult,
+  ZhihuVoteQuery, ZhihuVoteResult,
 } from '@deepseek-ai/dsh-zhihu-plugin/types'
 import { RemoteError } from '@deepseek-ai/dsh-typert-protocol'
 
@@ -79,6 +80,12 @@ export interface ZhihuPageFace {
    * @returns the replies and the thread's size, or the refusal.
    */
   replies(commentId: string, limit?: number): Promise<ZhihuPageOutcome<ZhihuCommentsResult>>
+  /**
+   * Cast or withdraw the reader's own upvote on one answer or article.
+   * @param query - content kind, lossless id, and the vote to hold after the call.
+   * @returns the count the vote left and the state the reader now holds, or the refusal.
+   */
+  vote(query: ZhihuVoteQuery): Promise<ZhihuPageOutcome<ZhihuVoteResult>>
   /**
    * Read the deployment settings this page applies. A Client whose Host publishes no namespace, or
    * a refused call, leaves the page on its own cap, so this reports no failure of its own.
@@ -175,6 +182,12 @@ export function zhihuPageFace(resolveRemote: () => ClientRemote['zhihu'] | undef
       if (remote === undefined) return unavailable('comments')
       const request = limit === undefined ? { commentId } : { commentId, limit }
       const result = await remote.replies(request)
+      return result.ok ? { ok: true, value: result.value } : { ok: false, failure: result.error }
+    },
+    async vote(query) {
+      const remote = resolveRemote()
+      if (remote === undefined) return unavailable(query.kind)
+      const result = await remote.vote(query)
       return result.ok ? { ok: true, value: result.value } : { ok: false, failure: result.error }
     },
     async settings() {

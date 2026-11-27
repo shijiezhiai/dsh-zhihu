@@ -11,7 +11,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type { PropsLocale, PropsRenderSlots, PropsRuntime, PropsStore } from '@deepseek-ai/dsh-client-ui-slots'
 import type {
   ZhihuExportDiscussion, ZhihuExportExcerpt, ZhihuFeedRow, ZhihuFeedSort, ZhihuFeedTimeWindow,
-  ZhihuSyncReadResult,
+  ZhihuSyncReadResult, ZhihuVoteQuery,
 } from '@deepseek-ai/dsh-zhihu-plugin/types'
 import type { ZhihuKey } from './locales.ts'
 import { readableBody } from './zhihu-ask.ts'
@@ -809,6 +809,12 @@ export function ZhihuPage(
     [face],
   )
 
+  /** Cast the reader's own upvote; a stable handle keeps the button from remounting mid-click. */
+  const castVote = useCallback(
+    (query: ZhihuVoteQuery) => face.vote(query),
+    [face],
+  )
+
   /** Drop the panel's reference; the discussion Session and its transcript stay. */
   const release = useCallback(() => {
     held.current?.release()
@@ -1188,6 +1194,7 @@ export function ZhihuPage(
                 onRetry={() => { read(opened.row) }}
                 onComments={loadComments}
                 onReplies={loadReplies}
+                onVote={castVote}
               />
             </div>
           )

@@ -21,6 +21,8 @@ import type {
   ZhihuRepliesRequest,
   ZhihuSearchPage,
   ZhihuSearchRequest,
+  ZhihuVoteRequest,
+  ZhihuVoteResult,
 } from './types.ts'
 
 export type {
@@ -43,6 +45,10 @@ export type {
   ZhihuSearchRequest,
   ZhihuSearchSort,
   ZhihuSearchTimeWindow,
+  ZhihuVote,
+  ZhihuVotableKind,
+  ZhihuVoteRequest,
+  ZhihuVoteResult,
 } from './types.ts'
 
 /** Construction inputs for {@link ZhihuError}. */
@@ -202,6 +208,16 @@ export class ZhihuService extends Service {
       items: capItems([...page.items], request.limit),
       ...(page.total === undefined ? {} : { total: page.total }),
     }
+  }
+
+  /**
+   * Cast or withdraw the reader's upvote on one answer or article through the selected provider.
+   * @param request - the content kind, its id, and the vote to hold after the call.
+   * @param signal - cancellation of the call.
+   * @returns the count the vote left and the state the caller now holds.
+   */
+  async vote(request: ZhihuVoteRequest, signal?: AbortSignal): Promise<ZhihuVoteResult> {
+    return await this.selectProvider().vote(request, signal)
   }
 
   /** Select the provider with the rules above, throwing the matching {@link ZhihuError}. */

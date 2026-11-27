@@ -8,7 +8,7 @@ import type { MarkdownLabels } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { RemoteFailure } from '@deepseek-ai/dsh-api-remotes/client'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import type {
-  ZhihuCommentRow, ZhihuCommentsResult, ZhihuFeedRow, ZhihuReadItem,
+  ZhihuCommentRow, ZhihuCommentsResult, ZhihuFeedRow, ZhihuReadItem, ZhihuVoteQuery, ZhihuVoteResult,
 } from '@deepseek-ai/dsh-zhihu-plugin/types'
 import type { ZhihuPageOutcome } from './zhihu-page-face.ts'
 import { zhihuPanelFailureLine } from './zhihu-panel-failure.ts'
@@ -440,6 +440,71 @@ export function ZhihuReplies({ comment, t, load }: {
   )
 }
 
+/** What one vote call left behind: the count it named, the state, and a refusal to report. */
+interface ZhihuVoteState {
+  readonly count: number
+  readonly voted: boolean
+  readonly busy: boolean
+  readonly failure?: RemoteFailure
+}
+
+/**
+ * Render one row's upvote count, with the reader's own vote button when the seat offers one.
+ *
+ * Zhihu names the vote to hold rather than a toggle, so a second click withdraws the first; a
+ * repeated `up` leaves the account where it was. The payload of a read never says whether this
+ * reader already voted, so the button starts as a plain upvote and reports the state the answer
+ * named once one has been cast.
+ * @param props.kind - content kind the row links to; a question is followed, not voted on.
+ * @param props.id - lossless content id.
+ * @param props.count - upvote count the read reported.
+ * @param props.t - copy of the Zhihu namespace.
+ * @param props.cast - casts or withdraws the reader's vote; omitted where the seat cannot vote.
+ * @returns the count, and the button when a vote is possible.
+ */
+function ZhihuVote({ kind, id, count, t, cast }: {
+  readonly kind: ZhihuFeedRow['kind']
+  readonly id: string
+  readonly count: number
+  readonly t: ZhihuTranslate
+  readonly cast?: (query: ZhihuVoteQuery) => Promise<ZhihuPageOutcome<ZhihuVoteResult>>
+}): ReactNode {
+  const [state, setState] = useState<ZhihuVoteState>({ count, voted: false, busy: false })
+  const votable = cast !== undefined && kind !== 'question'
+  const label = (total: number): string => total === 1 ? t('read.upvotesOne') : t('read.upvotes', { count: total })
+  const send = (vote: 'up' | 'none'): void => {
+    if (cast === undefined || state.busy || kind === 'question') return
+    setState(previous => ({ ...previous, busy: true }))
+    void cast({ kind, id, vote }).then((outcome) => {
+      if (!outcome.ok) {
+        setState(previous => ({ ...previous, busy: false, failure: outcome.failure }))
+        return
+      }
+      setState({
+        count: outcome.value.voteupCount ?? state.count,
+        voted: outcome.value.voted,
+        busy: false,
+      })
+    })
+  }
+  return (
+    <>
+      <span>{label(state.count)}</span>
+      {votable && (
+        <Button
+          variant="ghost"
+          size="sm"
+          disabled={state.busy}
+          onClick={() => { send(state.voted ? 'none' : 'up') }}
+        >
+          {state.voted ? t('read.upvoted') : t('read.upvote')}
+        </Button>
+      )}
+      {state.failure !== undefined && <span className={css.voteFailure}>{zhihuPanelFailureLine(t, state.failure)}</span>}
+    </>
+  )
+}
+
 /**
  * Render one opened row: its title, body, author line, and the refusal path.
  * @param props.state - the open row, its content, or its refusal.
@@ -448,15 +513,19 @@ export function ZhihuReplies({ comment, t, load }: {
  * @param props.onAsk - drafts a conversation about this row; omitted where the seat has no Workspace.
  * @param props.onComments - reads the row's thread; omitted where the seat has no comment lane.
  * @param props.onReplies - reads a comment's replies; omitted where the seat has no reply lane.
+ * @param props.onVote - casts the reader's own upvote; omitted where the seat cannot write one.
  * @returns the opened row.
  */
-export function ZhihuOpenedContent<R extends ZhihuFeedRow>({ state, t, onRetry, onAsk, onComments, onReplies }: {
+export function ZhihuOpenedContent<R extends ZhihuFeedRow>({
+  state, t, onRetry, onAsk, onComments, onReplies, onVote,
+}: {
   readonly state: ZhihuOpenedRow<R>
   readonly t: ZhihuTranslate
   readonly onRetry: () => void
   readonly onAsk?: () => void
   readonly onComments?: (row: ZhihuFeedRow, limit: number) => Promise<ZhihuPageOutcome<ZhihuCommentsResult>>
   readonly onReplies?: (commentId: string, limit: number) => Promise<ZhihuPageOutcome<ZhihuCommentsResult>>
+  readonly onVote?: (query: ZhihuVoteQuery) => Promise<ZhihuPageOutcome<ZhihuVoteResult>>
 }): ReactNode {
   return (
     <div className={css.content}>
@@ -491,10 +560,14 @@ export function ZhihuOpenedContent<R extends ZhihuFeedRow>({ state, t, onRetry, 
       )}
       {state.status === 'ready' && (
         <p className={css.meta}>
-          {state.item.author === '' ? t('panel.anonymous')
-            : state.item.author + ' · ' + (state.item.voteupCount === 1
-              ? t('read.upvotesOne')
-              : t('read.upvotes', { count: state.item.voteupCount }))}
+          {state.item.author === '' ? t('panel.anonymous') : state.item.author + ' · '}
+          <ZhihuVote
+            kind={state.row.kind}
+            id={state.row.id}
+            count={state.item.voteupCount}
+            t={t}
+            {...(onVote === undefined ? {} : { cast: onVote })}
+          />
         </p>
       )}
       <a className={css.original} href={state.row.url} target="_blank" rel="noreferrer">

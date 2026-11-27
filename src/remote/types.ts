@@ -166,6 +166,24 @@ export interface ZhihuRepliesQuery {
   readonly limit?: number
 }
 
+/** One vote the reader casts on an answer or an article. */
+export interface ZhihuVoteQuery {
+  /** Content kind the vote applies to; a question is followed rather than voted on. */
+  readonly kind: 'answer' | 'article'
+  /** Provider content id, carried as a string because some ids exceed 2^53. */
+  readonly id: string
+  /** Vote to hold after the call: `up` upvotes, `none` withdraws an upvote. */
+  readonly vote: 'up' | 'none'
+}
+
+/** What one vote answered: the count it left, and the state the reader now holds. */
+export interface ZhihuVoteResult {
+  /** Upvote count after the vote; absent when the payload carried none. */
+  readonly voteupCount?: number
+  /** True when the reader now holds an upvote. */
+  readonly voted: boolean
+}
+
 /** One read request; a question read returns its title plus its top answer text. */
 export interface ZhihuReadQuery {
   /** Which kind of content `id` addresses. */

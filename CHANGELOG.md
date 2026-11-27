@@ -2,6 +2,12 @@
 
 Every tag publishes the prebuilt tarball the plugin-market entry installs, at `https://github.com/shijiezhiai/dsh-zhihu/releases/download/v<version>/dsh-zhihu.tgz`; the asset name stays `dsh-zhihu.tgz`, so a version is identified by its URL.
 
+## 1.19.0
+
+### Added
+
+- The panel casts the reader's own upvote on an open answer or column post and withdraws it again, through a new write path in the HTTP client, the search-less cache, the seam, the Remote namespace and both faces. A write goes out as `POST` with a JSON body on the same spaced queue as the reads and absorbs the same single throttling retry; it never enters the cache. Answers take Zhihu's `{"type":"up"|"neutral"}` and articles take `{"voting":1|0}`, and the answer's own `voting` decides the button's state while a count the payload omits keeps the one the row showed. No model tool can vote: the write is only reachable from the button the reader clicks.
+
 ## 1.18.0
 
 ### Added

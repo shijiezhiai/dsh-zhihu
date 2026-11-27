@@ -23,6 +23,8 @@ import {
   type ZhihuSearchRequest,
   type ZhihuSearchSort,
   type ZhihuSearchTimeWindow,
+  type ZhihuVoteRequest,
+  type ZhihuVoteResult,
 } from '../service/index.ts'
 import { capText, toPlainText, toSearchText } from './html.ts'
 import { toMarkdown } from './markdown.ts'
@@ -36,6 +38,7 @@ import type {
   ZhihuRecommendItem,
   ZhihuSearchItem,
   ZhihuTransport,
+  ZhihuVoteBody,
 } from './types.ts'
 import { contentUrl } from './urls.ts'
 
@@ -232,6 +235,22 @@ export class ZhihuHttpProvider implements ZhihuProvider {
       childCommentUrl(request.commentId, request.limit ?? this.options.pageSize), request.limit, signal,
     )
     return { items: page.items, ...(page.total === undefined ? {} : { total: page.total }) }
+  }
+
+  /**
+   * Cast or withdraw the reader's upvote. Zhihu takes the state to hold rather than a toggle, so
+   * sending the same vote twice leaves the account where it already was.
+   * @param request - the content kind, its id, and the vote to hold after the call.
+   * @param signal - cancellation of the call.
+   * @returns the count the vote left, and the state the payload names — or the one asked for when
+   * the payload names none.
+   */
+  async vote(request: ZhihuVoteRequest, signal?: AbortSignal): Promise<ZhihuVoteResult> {
+    const body = await this.options.transport.post<ZhihuVoteBody>(voteUrl(request), voteBody(request), signal)
+    return {
+      ...(body.voteup_count === undefined ? {} : { voteupCount: body.voteup_count }),
+      voted: body.voting === undefined ? request.vote === 'up' : body.voting === 1,
+    }
   }
 
   /**
@@ -461,6 +480,28 @@ function zhihuUrl(candidate: string | undefined): string | undefined {
  */
 function commentUrl(kind: ZhihuContentKind, id: string, limit: number): string {
   return `${API_ROOT}/api/v4/comment_v5/${COMMENT_KIND[kind]}/${id}/root_comment?order=score&filter_tag=all&limit=${limit}`
+}
+
+/**
+ * Address the voters of one answer or article.
+ * @param request - the content kind and its lossless id.
+ * @returns the absolute request URL.
+ */
+function voteUrl(request: ZhihuVoteRequest): string {
+  return `${API_ROOT}/api/v4/${request.kind}s/${request.id}/voters`
+}
+
+/**
+ * Body of one vote. An answer and an article name the same intent in different fields, which is how
+ * the two endpoints were published.
+ * @param request - the content kind and the vote to hold.
+ * @returns the JSON body as the endpoint expects it.
+ */
+function voteBody(request: ZhihuVoteRequest): string {
+  const up = request.vote === 'up'
+  return request.kind === 'answer'
+    ? JSON.stringify({ type: up ? 'up' : 'neutral' })
+    : JSON.stringify({ voting: up ? 1 : 0 })
 }
 
 /**

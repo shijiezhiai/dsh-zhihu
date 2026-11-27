@@ -26,6 +26,8 @@ export declare const en: {
     'read.truncated': string;
     'read.upvotes': string;
     'read.upvotesOne': string;
+    'read.upvote': string;
+    'read.upvoted': string;
     'comments.heading': string;
     'comments.count': string;
     'comments.empty': string;

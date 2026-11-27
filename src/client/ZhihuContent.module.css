@@ -122,6 +122,11 @@
   color: var(--dsw-alias-brand-primary);
 }
 
+.voteFailure {
+  color: var(--dsw-alias-label-error);
+  font-size: var(--dsw-font-xs-13);
+}
+
 .comments {
   display: flex;
   flex-direction: column;

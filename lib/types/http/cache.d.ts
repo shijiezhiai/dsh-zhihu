@@ -29,6 +29,15 @@ export declare class ZhihuCachedTransport implements ZhihuTransport {
      */
     get<T>(url: string, signal?: AbortSignal): Promise<T>;
     /**
+     * Send one write straight through: a POST answers what its body asks for, so no earlier GET of the
+     * same URL may stand in for it.
+     * @param url - absolute request URL.
+     * @param body - JSON request body.
+     * @param signal - cancellation of the call.
+     * @returns the parsed body.
+     */
+    post<T>(url: string, body: string, signal?: AbortSignal): Promise<T>;
+    /**
      * Drop every entry whose lifetime has elapsed. Called before a store so that keys a caller never
      * re-requests do not accumulate for the life of the plugin mount.
      */

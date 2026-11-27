@@ -257,6 +257,33 @@ export interface ZhihuRepliesRequest {
   readonly limit?: number
 }
 
+/** The vote a reader holds on one answer or article. */
+export type ZhihuVote = 'up' | 'none'
+
+/** Content kinds a vote can be cast on; a question is followed rather than voted on. */
+export type ZhihuVotableKind = 'answer' | 'article'
+
+/**
+ * One vote request. It changes state on the reader's own account, so only a reader action sends
+ * one: no tool of this plugin casts a vote.
+ */
+export interface ZhihuVoteRequest {
+  /** Which kind of content `id` addresses. */
+  readonly kind: ZhihuVotableKind
+  /** Lossless decimal content id. */
+  readonly id: string
+  /** Vote to hold after the call: `up` upvotes, `none` withdraws an upvote. */
+  readonly vote: ZhihuVote
+}
+
+/** What one vote answered: the count it left, and the state the caller now holds. */
+export interface ZhihuVoteResult {
+  /** Upvote count after the vote; absent when the payload carried none, so the earlier count stands. */
+  readonly voteupCount?: number
+  /** True when the caller now holds an upvote. */
+  readonly voted: boolean
+}
+
 /**
  * One backend that can serve `ctx.zhihu`. Providers register themselves with the service and
  * answer `available()` per call, so selection reflects credentials that changed at runtime.
@@ -302,4 +329,12 @@ export interface ZhihuProvider {
    * @returns one slice of the replies; the seam caps them to `request.limit`.
    */
   replies(request: ZhihuRepliesRequest, signal?: AbortSignal): Promise<ZhihuCommentsPage>
+
+  /**
+   * Cast or withdraw the reader's upvote on one answer or article.
+   * @param request - the content kind, its id, and the vote to hold after the call.
+   * @param signal - cancellation of the call; a provider must stop its own work when it aborts.
+   * @returns the count the vote left and the state the caller now holds.
+   */
+  vote(request: ZhihuVoteRequest, signal?: AbortSignal): Promise<ZhihuVoteResult>
 }

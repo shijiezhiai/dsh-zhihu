@@ -44,7 +44,7 @@ export type ZhihuPanelProps = PropsRuntime<'sidebar.right.pane.tab'>
  */
 export function ZhihuPanel({
   // oxlint-disable-next-line typescript/unbound-method -- the injected face methods are closures that never read `this`.
-  useTabInfo, useStore, actions, load, read, ask, comments, replies, t,
+  useTabInfo, useStore, actions, load, read, ask, comments, replies, vote, t,
 }: ZhihuPanelProps): ReactNode {
   const { tab } = useTabInfo()
   const state = useStore(snapshot => snapshot.byTab[tab.id])
@@ -85,6 +85,7 @@ export function ZhihuPanel({
             onAsk={() => { void ask(detail.row, detail.status === 'ready' ? detail.item : undefined) }}
             onComments={comments}
             onReplies={replies}
+            onVote={vote}
           />
         </div>
       </section>

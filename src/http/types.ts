@@ -28,6 +28,15 @@ export interface ZhihuTransport {
    * @returns the parsed body.
    */
   get<T>(url: string, signal?: AbortSignal): Promise<T>
+
+  /**
+   * Perform one POST with a JSON body and parse the answer losslessly.
+   * @param url - absolute request URL.
+   * @param body - JSON request body.
+   * @param signal - cancellation of the call and of any wait it performs.
+   * @returns the parsed body.
+   */
+  post<T>(url: string, body: string, signal?: AbortSignal): Promise<T>
 }
 
 /** The `error` member of a Zhihu failure body. */
@@ -110,6 +119,14 @@ export interface ZhihuRecommendItem {
 export interface ZhihuMomentItem {
   /** The linked content; absent for promo entries. */
   readonly target?: ZhihuRecommendTarget
+}
+
+/** The answer to one vote: the count after it, and the state the caller now holds. */
+export interface ZhihuVoteBody {
+  /** Upvote count after the vote; absent when the payload carried none. */
+  readonly voteup_count?: number
+  /** State the caller holds: 1 when upvoted, 0 when the vote was withdrawn. */
+  readonly voting?: number
 }
 
 /** One answer object, as returned by the answers list and the answer detail endpoint. */

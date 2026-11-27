@@ -10,6 +10,7 @@ import type {
   ZhihuFailureTarget, ZhihuFeedQuery, ZhihuFeedResult, ZhihuFeedSort, ZhihuFeedTimeWindow,
   ZhihuReadItem, ZhihuReadQuery, ZhihuRemoteFailureCode, ZhihuRepliesQuery,
   ZhihuSearchQuery, ZhihuSearchResult, ZhihuSyncDocument, ZhihuSyncReadResult, ZhihuSyncSaveResult,
+  ZhihuVoteQuery, ZhihuVoteResult,
 } from './types.ts'
 import { fileCapture, noteName, notePath, readDocument, statePath, writeDocument, ObsidianError } from './obsidian.ts'
 import { assertStateDocument, readStateDocument } from './state.ts'
@@ -55,6 +56,9 @@ const FAILURE_CODES: Readonly<Record<ZhihuErrorCode, ZhihuRemoteFailureCode | un
 
 /** Orders a `topic` feed accepts, in the order an entry is offered. */
 const FEED_SORTS: readonly ZhihuFeedSort[] = ['relevance', 'newest', 'top']
+
+/** Votes a vote call accepts, in the order a reader meets them. */
+const VOTES: readonly ZhihuVoteQuery['vote'][] = ['up', 'none']
 
 /** Time windows a `topic` feed accepts, narrowest first. */
 const FEED_WINDOWS: readonly ZhihuFeedTimeWindow[] = ['day', 'week', 'month', 'year']
@@ -269,6 +273,24 @@ export default class ZhihuController extends TypertRemoteService {
   }
 
   /**
+   * Cast or withdraw the reader's upvote on one answer or article. This is the one call that changes
+   * the reader's Zhihu account, so only a reader action reaches it: no tool of this plugin votes.
+   * @param request - content kind, lossless id, and the vote to hold after the call.
+   * @returns the count the vote left, and the state the reader now holds.
+   */
+  @Remote
+  async vote(request: ZhihuVoteQuery): Promise<ZhihuVoteResult> {
+    const query = this.resolveVote(request)
+    try {
+      return await this.ctx.zhihu.vote(query)
+    } catch (error) {
+      const failure = seamFailure(error, query.kind)
+      if (failure === undefined) throw error
+      throw failure
+    }
+  }
+
+  /**
    * File one capture into the Obsidian vault, adding a marked passage to the note it came from.
    * @param request - the opened row plus the body the reader already holds.
    * @returns the vault path that was written.
@@ -417,6 +439,18 @@ export default class ZhihuController extends TypertRemoteService {
     }
     const limit = request.limit === undefined ? this.config.defaultLimit : requireLimit(request.limit)
     return { commentId: request.commentId, limit: Math.min(limit, this.config.maxLimit) }
+  }
+
+  /**
+   * Validate one vote before it reaches the seam.
+   * @param request - the wire request.
+   * @returns the seam request.
+   */
+  private resolveVote(request: ZhihuVoteQuery): ZhihuVoteQuery {
+    if (request.id.length === 0) {
+      throw new RemoteError('gateway/bad-request', 'id must not be empty', {})
+    }
+    return { kind: request.kind, id: request.id, vote: readMember(VOTES, request.vote, 'vote') }
   }
 
   private resolveComments(request: ZhihuCommentsQuery): ZhihuCommentsQuery {

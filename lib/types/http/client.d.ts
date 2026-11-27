@@ -37,6 +37,16 @@ export declare class ZhihuHttpClient implements ZhihuTransport {
      */
     get<T>(url: string, signal?: AbortSignal): Promise<T>;
     /**
+     * Perform one POST through the same serial queue, so a write never overtakes a read.
+     * @param url - absolute request URL.
+     * @param body - JSON request body.
+     * @param signal - cancellation of the call, including the wait before a resend.
+     * @returns the parsed body.
+     */
+    post<T>(url: string, body: string, signal?: AbortSignal): Promise<T>;
+    /** Put one request on the queue and hand back its own result. */
+    private queued;
+    /**
      * Serve one request, absorbing the throttling wait it named at most once. A request that fails
      * again after the resend is reported, so a permanently refused URL cannot loop.
      */
@@ -56,7 +66,7 @@ export declare class ZhihuHttpClient implements ZhihuTransport {
     /** Sleep out the remainder of `minIntervalMs` measured from the previous request. */
     private waitForSlot;
     /**
-     * Send one GET. `redirect: 'error'` makes fetch reject instead of following a redirect, so a
+     * Send one request. `redirect: 'error'` makes fetch reject instead of following a redirect, so a
      * redirected credential-bearing request never reaches a second host (packages/web/AGENTS.md).
      */
     private send;

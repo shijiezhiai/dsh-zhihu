@@ -2,7 +2,7 @@
 import { Context } from '@deepseek-ai/cordis';
 import z from '@deepseek-ai/schemastery';
 import { TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol';
-import type { ZhihuClientSettings, ZhihuCommentsQuery, ZhihuCommentsResult, ZhihuExportQuery, ZhihuExportResult, ZhihuFeedQuery, ZhihuFeedResult, ZhihuReadItem, ZhihuReadQuery, ZhihuRepliesQuery, ZhihuSearchQuery, ZhihuSearchResult, ZhihuSyncDocument, ZhihuSyncReadResult, ZhihuSyncSaveResult } from './types.ts';
+import type { ZhihuClientSettings, ZhihuCommentsQuery, ZhihuCommentsResult, ZhihuExportQuery, ZhihuExportResult, ZhihuFeedQuery, ZhihuFeedResult, ZhihuReadItem, ZhihuReadQuery, ZhihuRepliesQuery, ZhihuSearchQuery, ZhihuSearchResult, ZhihuSyncDocument, ZhihuSyncReadResult, ZhihuSyncSaveResult, ZhihuVoteQuery, ZhihuVoteResult } from './types.ts';
 export type * from './types.ts';
 declare module '@deepseek-ai/cordis' {
     interface Context {
@@ -78,6 +78,13 @@ export default class ZhihuController extends TypertRemoteService {
      */
     replies(request: ZhihuRepliesQuery): Promise<ZhihuCommentsResult>;
     /**
+     * Cast or withdraw the reader's upvote on one answer or article. This is the one call that changes
+     * the reader's Zhihu account, so only a reader action reaches it: no tool of this plugin votes.
+     * @param request - content kind, lossless id, and the vote to hold after the call.
+     * @returns the count the vote left, and the state the reader now holds.
+     */
+    vote(request: ZhihuVoteQuery): Promise<ZhihuVoteResult>;
+    /**
      * File one capture into the Obsidian vault, adding a marked passage to the note it came from.
      * @param request - the opened row plus the body the reader already holds.
      * @returns the vault path that was written.
@@ -123,6 +130,12 @@ export default class ZhihuController extends TypertRemoteService {
      * @returns the seam request.
      */
     private resolveReplies;
+    /**
+     * Validate one vote before it reaches the seam.
+     * @param request - the wire request.
+     * @returns the seam request.
+     */
+    private resolveVote;
     private resolveComments;
     /**
      * Validate one read request against this deployment's limits.

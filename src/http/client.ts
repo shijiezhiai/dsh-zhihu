@@ -35,6 +35,12 @@ type ZhihuAttempt<T> =
   | { readonly ok: true; readonly body: T }
   | { readonly ok: false; readonly failure: ZhihuError }
 
+/** A JSON body one write sends; a read passes none. */
+interface ZhihuWrite {
+  /** JSON request body. */
+  readonly body: string
+}
+
 /** Body of a Zhihu failure response. */
 interface ZhihuFailureBody {
   /** The API error member. */
@@ -58,7 +64,23 @@ export class ZhihuHttpClient implements ZhihuTransport {
    * @returns the parsed body.
    */
   async get<T>(url: string, signal?: AbortSignal): Promise<T> {
-    const result = this.tail.then(async () => await this.perform<T>(url, signal))
+    return await this.queued<T>(url, signal, undefined)
+  }
+
+  /**
+   * Perform one POST through the same serial queue, so a write never overtakes a read.
+   * @param url - absolute request URL.
+   * @param body - JSON request body.
+   * @param signal - cancellation of the call, including the wait before a resend.
+   * @returns the parsed body.
+   */
+  async post<T>(url: string, body: string, signal?: AbortSignal): Promise<T> {
+    return await this.queued<T>(url, signal, { body })
+  }
+
+  /** Put one request on the queue and hand back its own result. */
+  private async queued<T>(url: string, signal: AbortSignal | undefined, write: ZhihuWrite | undefined): Promise<T> {
+    const result = this.tail.then(async () => await this.perform<T>(url, signal, write))
     this.tail = result.then(() => undefined, () => undefined)
     return await result
   }
@@ -67,22 +89,27 @@ export class ZhihuHttpClient implements ZhihuTransport {
    * Serve one request, absorbing the throttling wait it named at most once. A request that fails
    * again after the resend is reported, so a permanently refused URL cannot loop.
    */
-  private async perform<T>(url: string, signal: AbortSignal | undefined): Promise<T> {
+  private async perform<T>(url: string, signal: AbortSignal | undefined, write: ZhihuWrite | undefined): Promise<T> {
     const cookie = await this.requireCookie()
-    const first = await this.exchange<T>(url, cookie, signal)
+    const first = await this.exchange<T>(url, cookie, signal, write)
     if (first.ok) return first.body
     const wait = this.waitBeforeRetry(first.failure)
     if (wait === undefined) throw first.failure
     await sleepUnlessAborted(this.options.clock, wait, signal)
-    const second = await this.exchange<T>(url, cookie, signal)
+    const second = await this.exchange<T>(url, cookie, signal, write)
     if (second.ok) return second.body
     throw second.failure
   }
 
   /** Wait for the next allowed slot, send, and classify the answer. */
-  private async exchange<T>(url: string, cookie: string, signal: AbortSignal | undefined): Promise<ZhihuAttempt<T>> {
+  private async exchange<T>(
+    url: string,
+    cookie: string,
+    signal: AbortSignal | undefined,
+    write: ZhihuWrite | undefined,
+  ): Promise<ZhihuAttempt<T>> {
     await this.waitForSlot()
-    const response = await this.send(url, cookie, signal)
+    const response = await this.send(url, cookie, signal, write)
     const text = await response.text()
     if (!response.ok) {
       return { ok: false, failure: this.failure(response.status, text, response.headers.get('retry-after'), cookie) }
@@ -136,19 +163,23 @@ export class ZhihuHttpClient implements ZhihuTransport {
   }
 
   /**
-   * Send one GET. `redirect: 'error'` makes fetch reject instead of following a redirect, so a
+   * Send one request. `redirect: 'error'` makes fetch reject instead of following a redirect, so a
    * redirected credential-bearing request never reaches a second host (packages/web/AGENTS.md).
    */
-  private async send(url: string, cookie: string, signal: AbortSignal | undefined): Promise<Response> {
+  private async send(
+    url: string, cookie: string, signal: AbortSignal | undefined, write: ZhihuWrite | undefined,
+  ): Promise<Response> {
     try {
       return await fetch(url, {
-        method: 'GET',
+        method: write === undefined ? 'GET' : 'POST',
         headers: {
           'user-agent': this.options.userAgent,
           'referer': ZHIHU_REFERER,
           'accept': ZHIHU_ACCEPT,
           'cookie': cookie,
+          ...(write === undefined ? {} : { 'content-type': 'application/json' }),
         },
+        ...(write === undefined ? {} : { body: write.body }),
         redirect: 'error',
         signal: combinedSignal(signal, AbortSignal.timeout(this.options.requestTimeoutMs)),
       })

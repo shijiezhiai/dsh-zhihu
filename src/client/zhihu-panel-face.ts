@@ -19,7 +19,9 @@ import type { SessionId } from '@deepseek-ai/dsh-session/types'
 // Type-only: pulls the generated 'zhihu' TypertRemoteNamespaceMap merge.
 import type {} from '@deepseek-ai/dsh-zhihu-plugin/remote'
 import { RemoteError } from '@deepseek-ai/dsh-typert-protocol'
-import type { ZhihuCommentsResult, ZhihuFeedRow, ZhihuReadItem } from '@deepseek-ai/dsh-zhihu-plugin/types'
+import type {
+  ZhihuCommentsResult, ZhihuFeedRow, ZhihuReadItem, ZhihuVoteQuery, ZhihuVoteResult,
+} from '@deepseek-ai/dsh-zhihu-plugin/types'
 import type { ZhihuPageOutcome } from './zhihu-page-face.ts'
 import type { ZhihuAskOutcome } from './zhihu-ask.ts'
 import type { ZhihuPanelSegment, ZhihuPanelStore } from './zhihu-panel-store.ts'
@@ -60,6 +62,12 @@ export interface ZhihuPanelInjected {
    * @returns the replies and the thread's size, or the refusal.
    */
   replies(commentId: string, limit?: number): Promise<ZhihuPageOutcome<ZhihuCommentsResult>>
+  /**
+   * Cast or withdraw the reader's own upvote on one answer or article.
+   * @param query - content kind, lossless id, and the vote to hold after the call.
+   * @returns the count the vote left and the state the reader now holds, or the refusal.
+   */
+  vote(query: ZhihuVoteQuery): Promise<ZhihuPageOutcome<ZhihuVoteResult>>
   /**
    * Draft a conversation about the open row into a Workspace session.
    * @param row - the row the reader has open.
@@ -204,6 +212,22 @@ export function zhihuPanelFace(
         }
         const request = limit === undefined ? { commentId } : { commentId, limit }
         return remote.replies(request).then(result => result.ok
+          ? { ok: true, value: result.value }
+          : { ok: false, failure: result.error })
+      },
+      vote(query) {
+        const remote = resolveRemote()
+        if (remote === undefined) {
+          return Promise.resolve({
+            ok: false,
+            failure: new RemoteError(
+              'zhihu/unavailable',
+              'The Zhihu Remote namespace is not mounted on this Client',
+              { kind: query.kind },
+            ),
+          })
+        }
+        return remote.vote(query).then(result => result.ok
           ? { ok: true, value: result.value }
           : { ok: false, failure: result.error })
       },

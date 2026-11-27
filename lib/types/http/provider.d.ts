@@ -4,7 +4,7 @@
  * link is built from a lossless id.
  * @module @deepseek-ai/dsh-zhihu-plugin/http/provider
  */
-import { type ZhihuCommentsPage, type ZhihuCommentsRequest, type ZhihuFeedPage, type ZhihuFeedRequest, type ZhihuProvider, type ZhihuReadRequest, type ZhihuReadResult, type ZhihuRepliesRequest, type ZhihuSearchPage, type ZhihuSearchRequest } from '../service/index.ts';
+import { type ZhihuCommentsPage, type ZhihuCommentsRequest, type ZhihuFeedPage, type ZhihuFeedRequest, type ZhihuProvider, type ZhihuReadRequest, type ZhihuReadResult, type ZhihuRepliesRequest, type ZhihuSearchPage, type ZhihuSearchRequest, type ZhihuVoteRequest, type ZhihuVoteResult } from '../service/index.ts';
 import type { ZhihuTransport } from './types.ts';
 /** Construction inputs for {@link ZhihuHttpProvider}. */
 export interface ZhihuHttpProviderOptions {
@@ -95,6 +95,15 @@ export declare class ZhihuHttpProvider implements ZhihuProvider {
      * @returns one slice of the replies with the thread size when the payload names it.
      */
     replies(request: ZhihuRepliesRequest, signal?: AbortSignal): Promise<ZhihuCommentsPage>;
+    /**
+     * Cast or withdraw the reader's upvote. Zhihu takes the state to hold rather than a toggle, so
+     * sending the same vote twice leaves the account where it already was.
+     * @param request - the content kind, its id, and the vote to hold after the call.
+     * @param signal - cancellation of the call.
+     * @returns the count the vote left, and the state the payload names — or the one asked for when
+     * the payload names none.
+     */
+    vote(request: ZhihuVoteRequest, signal?: AbortSignal): Promise<ZhihuVoteResult>;
     /**
      * Walk a comment listing until the limit is met or the page budget is spent.
      * @param first - absolute URL of the first page to fetch.

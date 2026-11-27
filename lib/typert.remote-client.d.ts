@@ -4,7 +4,7 @@ import type {
   TypertRemoteInfo,
   TypertRemoteMethod,
 } from '@deepseek-ai/dsh-typert-protocol'
-import type { ZhihuClientSettings, ZhihuCommentsQuery, ZhihuCommentsResult, ZhihuExportQuery, ZhihuExportResult, ZhihuFeedQuery, ZhihuFeedResult, ZhihuReadItem, ZhihuReadQuery, ZhihuRepliesQuery, ZhihuSearchQuery, ZhihuSearchResult, ZhihuSyncDocument, ZhihuSyncReadResult, ZhihuSyncSaveResult } from '@mayangyang/dsh-zhihu/types'
+import type { ZhihuClientSettings, ZhihuCommentsQuery, ZhihuCommentsResult, ZhihuExportQuery, ZhihuExportResult, ZhihuFeedQuery, ZhihuFeedResult, ZhihuReadItem, ZhihuReadQuery, ZhihuRepliesQuery, ZhihuSearchQuery, ZhihuSearchResult, ZhihuSyncDocument, ZhihuSyncReadResult, ZhihuSyncSaveResult, ZhihuVoteQuery, ZhihuVoteResult } from '@mayangyang/dsh-zhihu/types'
 
 declare module '@deepseek-ai/dsh-typert-protocol' {
   interface TypertRemoteNamespace$7a68696875 {
@@ -17,6 +17,7 @@ declare module '@deepseek-ai/dsh-typert-protocol' {
     search: (request: ZhihuSearchQuery) => Promise<RemoteResult<ZhihuSearchResult>>
     settings: () => Promise<RemoteResult<ZhihuClientSettings>>
     state: () => Promise<RemoteResult<ZhihuSyncReadResult>>
+    vote: (request: ZhihuVoteQuery) => Promise<RemoteResult<ZhihuVoteResult>>
   }
   interface TypertRemoteMap {
     'zhihu/comments': (request: ZhihuCommentsQuery) => Promise<RemoteResult<ZhihuCommentsResult>>
@@ -28,6 +29,7 @@ declare module '@deepseek-ai/dsh-typert-protocol' {
     'zhihu/search': (request: ZhihuSearchQuery) => Promise<RemoteResult<ZhihuSearchResult>>
     'zhihu/settings': () => Promise<RemoteResult<ZhihuClientSettings>>
     'zhihu/state': () => Promise<RemoteResult<ZhihuSyncReadResult>>
+    'zhihu/vote': (request: ZhihuVoteQuery) => Promise<RemoteResult<ZhihuVoteResult>>
   }
   interface TypertRemoteNamespaceMap {
     'zhihu': TypertRemoteNamespace$7a68696875
@@ -44,6 +46,7 @@ export declare const TYPERT_REMOTE: TypertRemoteInfo<{
   readonly 'zhihu/search': TypertRemoteMethod<{ readonly 'request': ZhihuSearchQuery }, ZhihuSearchResult>
   readonly 'zhihu/settings': TypertRemoteMethod<{  }, ZhihuClientSettings>
   readonly 'zhihu/state': TypertRemoteMethod<{  }, ZhihuSyncReadResult>
+  readonly 'zhihu/vote': TypertRemoteMethod<{ readonly 'request': ZhihuVoteQuery }, ZhihuVoteResult>
 }>
 export default TYPERT_REMOTE
 //# sourceMappingURL=typert.remote-client.d.ts.map
