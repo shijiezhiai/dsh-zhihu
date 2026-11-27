@@ -11,7 +11,8 @@ import type { RemoteFailure } from '@deepseek-ai/dsh-api-remotes/client'
 // Type-only: pulls the generated 'zhihu' TypertRemoteNamespaceMap merge.
 import type {} from '@deepseek-ai/dsh-zhihu-plugin/remote'
 import type {
-  ZhihuClientSettings, ZhihuCommentsResult, ZhihuExportQuery, ZhihuExportResult, ZhihuFailureTarget,
+  ZhihuClientSettings, ZhihuCollectQuery, ZhihuCollectResult, ZhihuCollectionsResult,
+  ZhihuCommentsResult, ZhihuExportQuery, ZhihuExportResult, ZhihuFailureTarget,
   ZhihuFeedQuery, ZhihuFeedResult, ZhihuFeedRow, ZhihuFeedSort, ZhihuFeedTimeWindow, ZhihuReadItem,
   ZhihuSearchQuery,
   ZhihuSyncDocument, ZhihuSyncReadResult, ZhihuSyncSaveResult,
@@ -86,6 +87,18 @@ export interface ZhihuPageFace {
    * @returns the count the vote left and the state the reader now holds, or the refusal.
    */
   vote(query: ZhihuVoteQuery): Promise<ZhihuPageOutcome<ZhihuVoteResult>>
+  /**
+   * Read the collections of the reader's own account.
+   * @param limit - collections requested; omitted reads the page's default slice.
+   * @returns the collections, or the refusal.
+   */
+  collections(limit?: number): Promise<ZhihuPageOutcome<ZhihuCollectionsResult>>
+  /**
+   * Add the open row to one collection of the reader, or take it out again.
+   * @param query - content kind, lossless id, collection id, and whether it belongs there.
+   * @returns the membership the call left, or the refusal.
+   */
+  collect(query: ZhihuCollectQuery): Promise<ZhihuPageOutcome<ZhihuCollectResult>>
   /**
    * Read the deployment settings this page applies. A Client whose Host publishes no namespace, or
    * a refused call, leaves the page on its own cap, so this reports no failure of its own.
@@ -188,6 +201,18 @@ export function zhihuPageFace(resolveRemote: () => ClientRemote['zhihu'] | undef
       const remote = resolveRemote()
       if (remote === undefined) return unavailable(query.kind)
       const result = await remote.vote(query)
+      return result.ok ? { ok: true, value: result.value } : { ok: false, failure: result.error }
+    },
+    async collections(limit) {
+      const remote = resolveRemote()
+      if (remote === undefined) return unavailable('collections')
+      const result = await remote.collections(limit === undefined ? {} : { limit })
+      return result.ok ? { ok: true, value: result.value } : { ok: false, failure: result.error }
+    },
+    async collect(query) {
+      const remote = resolveRemote()
+      if (remote === undefined) return unavailable(query.kind)
+      const result = await remote.collect(query)
       return result.ok ? { ok: true, value: result.value } : { ok: false, failure: result.error }
     },
     async settings() {

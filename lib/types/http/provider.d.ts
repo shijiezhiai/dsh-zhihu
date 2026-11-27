@@ -4,7 +4,7 @@
  * link is built from a lossless id.
  * @module @deepseek-ai/dsh-zhihu-plugin/http/provider
  */
-import { type ZhihuCommentsPage, type ZhihuCommentsRequest, type ZhihuFeedPage, type ZhihuFeedRequest, type ZhihuProvider, type ZhihuReadRequest, type ZhihuReadResult, type ZhihuRepliesRequest, type ZhihuSearchPage, type ZhihuSearchRequest, type ZhihuVoteRequest, type ZhihuVoteResult } from '../service/index.ts';
+import { type ZhihuCollectRequest, type ZhihuCollectResult, type ZhihuCollection, type ZhihuCollectionsRequest, type ZhihuCommentsPage, type ZhihuCommentsRequest, type ZhihuFeedPage, type ZhihuFeedRequest, type ZhihuProvider, type ZhihuReadRequest, type ZhihuReadResult, type ZhihuRepliesRequest, type ZhihuSearchPage, type ZhihuSearchRequest, type ZhihuVoteRequest, type ZhihuVoteResult } from '../service/index.ts';
 import type { ZhihuTransport } from './types.ts';
 /** Construction inputs for {@link ZhihuHttpProvider}. */
 export interface ZhihuHttpProviderOptions {
@@ -95,6 +95,22 @@ export declare class ZhihuHttpProvider implements ZhihuProvider {
      * @returns one slice of the replies with the thread size when the payload names it.
      */
     replies(request: ZhihuRepliesRequest, signal?: AbortSignal): Promise<ZhihuCommentsPage>;
+    /**
+     * List the collections of the reader's own account. The endpoint names that account as `self`, so
+     * the call needs no account id.
+     * @param request - an optional limit on returned collections.
+     * @param signal - cancellation of the call.
+     * @returns the collections the payload named, in its order.
+     */
+    collections(request: ZhihuCollectionsRequest, signal?: AbortSignal): Promise<readonly ZhihuCollection[]>;
+    /**
+     * Add one answer or article to a collection of the reader, or take it out again. Zhihu names the
+     * change by method rather than by body, so the call sends the state it wants left.
+     * @param request - the content, the collection, and whether it belongs there after the call.
+     * @param signal - cancellation of the call.
+     * @returns the membership the call left.
+     */
+    collect(request: ZhihuCollectRequest, signal?: AbortSignal): Promise<ZhihuCollectResult>;
     /**
      * Cast or withdraw the reader's upvote. Zhihu takes the state to hold rather than a toggle, so
      * sending the same vote twice leaves the account where it already was.

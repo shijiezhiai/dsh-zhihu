@@ -10,8 +10,8 @@ import type { RemoteFailure } from '@deepseek-ai/dsh-api-remotes/client'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type { PropsLocale, PropsRenderSlots, PropsRuntime, PropsStore } from '@deepseek-ai/dsh-client-ui-slots'
 import type {
-  ZhihuExportDiscussion, ZhihuExportExcerpt, ZhihuFeedRow, ZhihuFeedSort, ZhihuFeedTimeWindow,
-  ZhihuSyncReadResult, ZhihuVoteQuery,
+  ZhihuCollectQuery, ZhihuExportDiscussion, ZhihuExportExcerpt, ZhihuFeedRow, ZhihuFeedSort,
+  ZhihuFeedTimeWindow, ZhihuSyncReadResult, ZhihuVoteQuery,
 } from '@deepseek-ai/dsh-zhihu-plugin/types'
 import type { ZhihuKey } from './locales.ts'
 import { readableBody } from './zhihu-ask.ts'
@@ -937,6 +937,15 @@ export function ZhihuPage(
     [face],
   )
 
+  /** List the reader's collections; a stable handle keeps the menu from refetching on every render. */
+  const loadCollections = useCallback(() => face.collections(), [face])
+
+  /** File the open row into a collection, or take it out again. */
+  const castCollect = useCallback(
+    (query: ZhihuCollectQuery) => face.collect(query),
+    [face],
+  )
+
   /** Drop the panel's reference; the discussion Session and its transcript stay. */
   const release = useCallback(() => {
     held.current?.release()
@@ -1321,6 +1330,8 @@ export function ZhihuPage(
                 onComments={loadComments}
                 onReplies={loadReplies}
                 onVote={castVote}
+                onCollections={loadCollections}
+                onCollect={castCollect}
               />
             </div>
           )

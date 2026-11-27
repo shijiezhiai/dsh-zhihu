@@ -33,6 +33,13 @@ export interface ZhihuTransport {
      * @returns the parsed body.
      */
     post<T>(url: string, body: string, signal?: AbortSignal): Promise<T>;
+    /**
+     * Perform one DELETE and parse the answer losslessly.
+     * @param url - absolute request URL.
+     * @param signal - cancellation of the call and of any wait it performs.
+     * @returns the parsed body.
+     */
+    delete<T>(url: string, signal?: AbortSignal): Promise<T>;
 }
 /** The `error` member of a Zhihu failure body. */
 export interface ZhihuWireError {
@@ -42,6 +49,15 @@ export interface ZhihuWireError {
     readonly name?: string;
     /** Human-readable message; safe to surface, never contains the cookie. */
     readonly message?: string;
+}
+/** One collection a reader keeps items in, as the collections endpoint reports it. */
+export interface ZhihuCollectionWire {
+    /** Collection id; a rewritten payload may carry it as a number. */
+    readonly id?: number | string;
+    /** Title the reader gave it. */
+    readonly title?: string;
+    /** Number of items the collection holds. */
+    readonly item_count?: number;
 }
 /** A body carrying a `data` array, shared by feeds, search, and comments. */
 export interface ZhihuListBody<T> {

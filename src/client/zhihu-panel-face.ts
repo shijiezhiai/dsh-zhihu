@@ -20,6 +20,7 @@ import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type {} from '@deepseek-ai/dsh-zhihu-plugin/remote'
 import { RemoteError } from '@deepseek-ai/dsh-typert-protocol'
 import type {
+  ZhihuCollectQuery, ZhihuCollectResult, ZhihuCollectionsResult,
   ZhihuCommentsResult, ZhihuFeedRow, ZhihuReadItem, ZhihuVoteQuery, ZhihuVoteResult,
 } from '@deepseek-ai/dsh-zhihu-plugin/types'
 import type { ZhihuPageOutcome } from './zhihu-page-face.ts'
@@ -68,6 +69,18 @@ export interface ZhihuPanelInjected {
    * @returns the count the vote left and the state the reader now holds, or the refusal.
    */
   vote(query: ZhihuVoteQuery): Promise<ZhihuPageOutcome<ZhihuVoteResult>>
+  /**
+   * Read the collections of the reader's own account.
+   * @param limit - collections requested; omitted reads the default slice.
+   * @returns the collections, or the refusal.
+   */
+  collections(limit?: number): Promise<ZhihuPageOutcome<ZhihuCollectionsResult>>
+  /**
+   * Add the open row to one collection of the reader, or take it out again.
+   * @param query - content kind, lossless id, collection id, and whether it belongs there.
+   * @returns the membership the call left, or the refusal.
+   */
+  collect(query: ZhihuCollectQuery): Promise<ZhihuPageOutcome<ZhihuCollectResult>>
   /**
    * Draft a conversation about the open row into a Workspace session.
    * @param row - the row the reader has open.
@@ -228,6 +241,38 @@ export function zhihuPanelFace(
           })
         }
         return remote.vote(query).then(result => result.ok
+          ? { ok: true, value: result.value }
+          : { ok: false, failure: result.error })
+      },
+      collections(limit) {
+        const remote = resolveRemote()
+        if (remote === undefined) {
+          return Promise.resolve({
+            ok: false,
+            failure: new RemoteError(
+              'zhihu/unavailable',
+              'The Zhihu Remote namespace is not mounted on this Client',
+              { kind: 'collections' },
+            ),
+          })
+        }
+        return remote.collections(limit === undefined ? {} : { limit }).then(result => result.ok
+          ? { ok: true, value: result.value }
+          : { ok: false, failure: result.error })
+      },
+      collect(query) {
+        const remote = resolveRemote()
+        if (remote === undefined) {
+          return Promise.resolve({
+            ok: false,
+            failure: new RemoteError(
+              'zhihu/unavailable',
+              'The Zhihu Remote namespace is not mounted on this Client',
+              { kind: query.kind },
+            ),
+          })
+        }
+        return remote.collect(query).then(result => result.ok
           ? { ok: true, value: result.value }
           : { ok: false, failure: result.error })
       },

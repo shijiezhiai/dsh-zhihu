@@ -35,7 +35,7 @@ declare module '@deepseek-ai/dsh-typert-protocol' {
  * for, `search`, or `comments` when the call read a reply thread. One member keeps every failure
  * code's details readable by the same renderer.
  */
-export type ZhihuFailureTarget = ZhihuFeedQuery['kind'] | ZhihuReadQuery['kind'] | 'search' | 'comments' | 'state';
+export type ZhihuFailureTarget = ZhihuFeedQuery['kind'] | ZhihuReadQuery['kind'] | 'search' | 'comments' | 'collections' | 'state';
 /** Every failure code this Remote raises from a classified seam error. */
 export type ZhihuRemoteFailureCode = 'zhihu/login-required' | 'zhihu/rate-limited' | 'zhihu/blocked' | 'zhihu/not-found' | 'zhihu/bad-response' | 'zhihu/unavailable' | 'zhihu/export-failed';
 /** Order a `topic` feed lists its entries in. */
@@ -165,6 +165,41 @@ export interface ZhihuVoteResult {
     readonly voteupCount?: number;
     /** True when the reader now holds an upvote. */
     readonly voted: boolean;
+}
+/** One request for the collections of the reader's own account. */
+export interface ZhihuCollectionsQuery {
+    /** Collections requested; the Host applies its own default and cap. */
+    readonly limit?: number;
+}
+/** One collection the reader keeps items in. */
+export interface ZhihuCollectionRow {
+    /** Lossless decimal collection id. */
+    readonly id: string;
+    /** Title the reader gave it. */
+    readonly title: string;
+    /** Number of items it holds. */
+    readonly itemCount: number;
+}
+/** The collections of the reader's own account, in the order Zhihu lists them. */
+export interface ZhihuCollectionsResult {
+    /** Collections read. */
+    readonly items: readonly ZhihuCollectionRow[];
+}
+/** One change to a collection of the reader's own account. */
+export interface ZhihuCollectQuery {
+    /** Content kind the change applies to; a question is followed rather than collected. */
+    readonly kind: 'answer' | 'article';
+    /** Provider content id, carried as a string because some ids exceed 2^53. */
+    readonly id: string;
+    /** Lossless decimal id of the collection that gains or loses the item. */
+    readonly collectionId: string;
+    /** Whether the item belongs in that collection after the call. */
+    readonly collected: boolean;
+}
+/** What one collection change answered. */
+export interface ZhihuCollectResult {
+    /** True when the item belongs in the collection after the call. */
+    readonly collected: boolean;
 }
 /** One read request; a question read returns its title plus its top answer text. */
 export interface ZhihuReadQuery {

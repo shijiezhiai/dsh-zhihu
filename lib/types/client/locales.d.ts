@@ -28,6 +28,9 @@ export declare const en: {
     'read.upvotesOne': string;
     'read.upvote': string;
     'read.upvoted': string;
+    'read.collect': string;
+    'read.collected': string;
+    'read.noCollections': string;
     'comments.heading': string;
     'comments.count': string;
     'comments.empty': string;

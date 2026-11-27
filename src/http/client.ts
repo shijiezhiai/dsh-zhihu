@@ -35,10 +35,12 @@ type ZhihuAttempt<T> =
   | { readonly ok: true; readonly body: T }
   | { readonly ok: false; readonly failure: ZhihuError }
 
-/** A JSON body one write sends; a read passes none. */
+/** One write a request performs; a read passes none. */
 interface ZhihuWrite {
-  /** JSON request body. */
-  readonly body: string
+  /** HTTP method the write uses. */
+  readonly method: 'POST' | 'DELETE'
+  /** JSON request body; a delete sends none. */
+  readonly body?: string
 }
 
 /** Body of a Zhihu failure response. */
@@ -75,7 +77,17 @@ export class ZhihuHttpClient implements ZhihuTransport {
    * @returns the parsed body.
    */
   async post<T>(url: string, body: string, signal?: AbortSignal): Promise<T> {
-    return await this.queued<T>(url, signal, { body })
+    return await this.queued<T>(url, signal, { method: 'POST', body })
+  }
+
+  /**
+   * Perform one DELETE through the same serial queue, so a removal never overtakes a read either.
+   * @param url - absolute request URL.
+   * @param signal - cancellation of the call, including the wait before a resend.
+   * @returns the parsed body.
+   */
+  async delete<T>(url: string, signal?: AbortSignal): Promise<T> {
+    return await this.queued<T>(url, signal, { method: 'DELETE' })
   }
 
   /** Put one request on the queue and hand back its own result. */
@@ -171,15 +183,15 @@ export class ZhihuHttpClient implements ZhihuTransport {
   ): Promise<Response> {
     try {
       return await fetch(url, {
-        method: write === undefined ? 'GET' : 'POST',
+        method: write?.method ?? 'GET',
         headers: {
           'user-agent': this.options.userAgent,
           'referer': ZHIHU_REFERER,
           'accept': ZHIHU_ACCEPT,
           'cookie': cookie,
-          ...(write === undefined ? {} : { 'content-type': 'application/json' }),
+          ...(write?.body === undefined ? {} : { 'content-type': 'application/json' }),
         },
-        ...(write === undefined ? {} : { body: write.body }),
+        ...(write?.body === undefined ? {} : { body: write.body }),
         redirect: 'error',
         signal: combinedSignal(signal, AbortSignal.timeout(this.options.requestTimeoutMs)),
       })

@@ -8,8 +8,8 @@
 import { Context, Service, type Volatile } from '@deepseek-ai/cordis';
 import z from '@deepseek-ai/schemastery';
 import { HarnessError } from '@deepseek-ai/dsh-llm';
-import type { ZhihuCommentsPage, ZhihuCommentsRequest, ZhihuErrorCode, ZhihuFeedPage, ZhihuFeedRequest, ZhihuProvider, ZhihuReadRequest, ZhihuReadResult, ZhihuRepliesRequest, ZhihuSearchPage, ZhihuSearchRequest, ZhihuVoteRequest, ZhihuVoteResult } from './types.ts';
-export type { ZhihuComment, ZhihuCommentsPage, ZhihuCommentsRequest, ZhihuContentKind, ZhihuErrorCode, ZhihuFeedItem, ZhihuFeedKind, ZhihuFeedPage, ZhihuFeedRequest, ZhihuProvider, ZhihuReadKind, ZhihuReadRequest, ZhihuReadResult, ZhihuRepliesRequest, ZhihuSearchHit, ZhihuSearchPage, ZhihuSearchRequest, ZhihuSearchSort, ZhihuSearchTimeWindow, ZhihuVote, ZhihuVotableKind, ZhihuVoteRequest, ZhihuVoteResult, } from './types.ts';
+import type { ZhihuCollectRequest, ZhihuCollectResult, ZhihuCollection, ZhihuCollectionsRequest, ZhihuCommentsPage, ZhihuCommentsRequest, ZhihuErrorCode, ZhihuFeedPage, ZhihuFeedRequest, ZhihuProvider, ZhihuReadRequest, ZhihuReadResult, ZhihuRepliesRequest, ZhihuSearchPage, ZhihuSearchRequest, ZhihuVoteRequest, ZhihuVoteResult } from './types.ts';
+export type { ZhihuCollectableKind, ZhihuCollectRequest, ZhihuCollectResult, ZhihuCollection, ZhihuCollectionsRequest, ZhihuComment, ZhihuCommentsPage, ZhihuCommentsRequest, ZhihuContentKind, ZhihuErrorCode, ZhihuFeedItem, ZhihuFeedKind, ZhihuFeedPage, ZhihuFeedRequest, ZhihuProvider, ZhihuReadKind, ZhihuReadRequest, ZhihuReadResult, ZhihuRepliesRequest, ZhihuSearchHit, ZhihuSearchPage, ZhihuSearchRequest, ZhihuSearchSort, ZhihuSearchTimeWindow, ZhihuVote, ZhihuVotableKind, ZhihuVoteRequest, ZhihuVoteResult, } from './types.ts';
 /** Construction inputs for {@link ZhihuError}. */
 export interface ZhihuErrorOptions extends ErrorOptions {
     /** Whole seconds Zhihu asked the caller to wait, from its `Retry-After` header. */
@@ -116,6 +116,21 @@ export declare class ZhihuService extends Service {
      * @returns one slice of the replies, capped to `request.limit`.
      */
     replies(request: ZhihuRepliesRequest, signal?: AbortSignal): Promise<ZhihuCommentsPage>;
+    /**
+     * List the collections the reader keeps items in, through the selected provider.
+     * @param request - an optional limit on returned collections.
+     * @param signal - cancellation of the call.
+     * @returns the collections the payload named, in its order.
+     */
+    collections(request: ZhihuCollectionsRequest, signal?: AbortSignal): Promise<readonly ZhihuCollection[]>;
+    /**
+     * Add one answer or article to a collection of the reader, or take it out again, through the
+     * selected provider.
+     * @param request - the content, the collection, and whether it belongs there after the call.
+     * @param signal - cancellation of the call.
+     * @returns the membership the call left.
+     */
+    collect(request: ZhihuCollectRequest, signal?: AbortSignal): Promise<ZhihuCollectResult>;
     /**
      * Cast or withdraw the reader's upvote on one answer or article through the selected provider.
      * @param request - the content kind, its id, and the vote to hold after the call.

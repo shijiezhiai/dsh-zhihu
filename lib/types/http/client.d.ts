@@ -44,6 +44,13 @@ export declare class ZhihuHttpClient implements ZhihuTransport {
      * @returns the parsed body.
      */
     post<T>(url: string, body: string, signal?: AbortSignal): Promise<T>;
+    /**
+     * Perform one DELETE through the same serial queue, so a removal never overtakes a read either.
+     * @param url - absolute request URL.
+     * @param signal - cancellation of the call, including the wait before a resend.
+     * @returns the parsed body.
+     */
+    delete<T>(url: string, signal?: AbortSignal): Promise<T>;
     /** Put one request on the queue and hand back its own result. */
     private queued;
     /**

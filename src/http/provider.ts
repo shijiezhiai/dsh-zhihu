@@ -8,6 +8,10 @@
 import {
   ZhihuError,
   type ZhihuComment,
+  type ZhihuCollectRequest,
+  type ZhihuCollectResult,
+  type ZhihuCollection,
+  type ZhihuCollectionsRequest,
   type ZhihuCommentsPage,
   type ZhihuCommentsRequest,
   type ZhihuContentKind,
@@ -30,6 +34,7 @@ import { capText, toPlainText, toSearchText } from './html.ts'
 import { toMarkdown } from './markdown.ts'
 import type {
   ZhihuAnswer,
+  ZhihuCollectionWire,
   ZhihuCommentRow,
   ZhihuHotItem,
   ZhihuListBody,
@@ -235,6 +240,37 @@ export class ZhihuHttpProvider implements ZhihuProvider {
       childCommentUrl(request.commentId, request.limit ?? this.options.pageSize), request.limit, signal,
     )
     return { items: page.items, ...(page.total === undefined ? {} : { total: page.total }) }
+  }
+
+  /**
+   * List the collections of the reader's own account. The endpoint names that account as `self`, so
+   * the call needs no account id.
+   * @param request - an optional limit on returned collections.
+   * @param signal - cancellation of the call.
+   * @returns the collections the payload named, in its order.
+   */
+  async collections(request: ZhihuCollectionsRequest, signal?: AbortSignal): Promise<readonly ZhihuCollection[]> {
+    const limit = request.limit ?? this.options.pageSize
+    const body = await this.options.transport.get<ZhihuListBody<ZhihuCollectionWire>>(collectionsUrl(limit), signal)
+    return (body.data ?? []).flatMap(entry => entry.id === undefined ? [] : [{
+      id: String(entry.id),
+      title: entry.title ?? '',
+      itemCount: entry.item_count ?? 0,
+    }])
+  }
+
+  /**
+   * Add one answer or article to a collection of the reader, or take it out again. Zhihu names the
+   * change by method rather than by body, so the call sends the state it wants left.
+   * @param request - the content, the collection, and whether it belongs there after the call.
+   * @param signal - cancellation of the call.
+   * @returns the membership the call left.
+   */
+  async collect(request: ZhihuCollectRequest, signal?: AbortSignal): Promise<ZhihuCollectResult> {
+    const url = collectionItemUrl(request)
+    if (request.collected) await this.options.transport.post<unknown>(url, '', signal)
+    else await this.options.transport.delete<unknown>(url, signal)
+    return { collected: request.collected }
   }
 
   /**
@@ -480,6 +516,24 @@ function zhihuUrl(candidate: string | undefined): string | undefined {
  */
 function commentUrl(kind: ZhihuContentKind, id: string, limit: number): string {
   return `${API_ROOT}/api/v4/comment_v5/${COMMENT_KIND[kind]}/${id}/root_comment?order=score&filter_tag=all&limit=${limit}`
+}
+
+/**
+ * Address the collections of the reader's own account.
+ * @param limit - collections requested from the first page.
+ * @returns the absolute request URL.
+ */
+function collectionsUrl(limit: number): string {
+  return `${API_ROOT}/api/v4/people/self/collections?offset=0&limit=${limit}`
+}
+
+/**
+ * Address one answer or article inside one collection.
+ * @param request - the content kind and the ids that name the membership.
+ * @returns the absolute request URL.
+ */
+function collectionItemUrl(request: ZhihuCollectRequest): string {
+  return `${API_ROOT}/api/v4/collections/${request.collectionId}/contents?content_id=${request.id}&content_type=${request.kind}`
 }
 
 /**

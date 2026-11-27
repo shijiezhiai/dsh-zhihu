@@ -2,6 +2,12 @@
 
 Every tag publishes the prebuilt tarball the plugin-market entry installs, at `https://github.com/shijiezhiai/dsh-zhihu/releases/download/v<version>/dsh-zhihu.tgz`; the asset name stays `dsh-zhihu.tgz`, so a version is identified by its URL.
 
+## 1.21.0
+
+### Added
+
+- An opened answer or column post can be filed into one of the reader's own Zhihu collections, or taken out again. The control lists those collections when its menu opens, names the one this panel filed the row into, and reports a refusal beside the button; a question row is followed rather than collected, and no model tool can file anything.
+
 ## 1.20.0
 
 ### Added

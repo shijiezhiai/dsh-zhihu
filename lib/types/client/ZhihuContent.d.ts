@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import type { RemoteFailure } from '@deepseek-ai/dsh-api-remotes/client';
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
-import type { ZhihuCommentRow, ZhihuCommentsResult, ZhihuFeedRow, ZhihuReadItem, ZhihuVoteQuery, ZhihuVoteResult } from '@deepseek-ai/dsh-zhihu-plugin/types';
+import type { ZhihuCollectQuery, ZhihuCollectResult, ZhihuCollectionsResult, ZhihuCommentRow, ZhihuCommentsResult, ZhihuFeedRow, ZhihuReadItem, ZhihuVoteQuery, ZhihuVoteResult } from '@deepseek-ai/dsh-zhihu-plugin/types';
 import type { ZhihuPageOutcome } from './zhihu-page-face.ts';
 import type { ZhihuPageDensity, ZhihuRankMove } from './zhihu-page-store.ts';
 /** Copy handle of the Zhihu namespace. */
@@ -91,9 +91,11 @@ export declare function ZhihuReplies({ comment, t, load }: {
  * @param props.onComments - reads the row's thread; omitted where the seat has no comment lane.
  * @param props.onReplies - reads a comment's replies; omitted where the seat has no reply lane.
  * @param props.onVote - casts the reader's own upvote; omitted where the seat cannot write one.
+ * @param props.onCollections - lists the reader's own collections; omitted where the seat cannot write.
+ * @param props.onCollect - files the row into a collection; omitted where the seat cannot write.
  * @returns the opened row.
  */
-export declare function ZhihuOpenedContent<R extends ZhihuFeedRow>({ state, t, onRetry, onAsk, onComments, onReplies, onVote, }: {
+export declare function ZhihuOpenedContent<R extends ZhihuFeedRow>({ state, t, onRetry, onAsk, onComments, onReplies, onVote, onCollections, onCollect, }: {
     readonly state: ZhihuOpenedRow<R>;
     readonly t: ZhihuTranslate;
     readonly onRetry: () => void;
@@ -101,5 +103,7 @@ export declare function ZhihuOpenedContent<R extends ZhihuFeedRow>({ state, t, o
     readonly onComments?: (row: ZhihuFeedRow, limit: number) => Promise<ZhihuPageOutcome<ZhihuCommentsResult>>;
     readonly onReplies?: (commentId: string, limit: number) => Promise<ZhihuPageOutcome<ZhihuCommentsResult>>;
     readonly onVote?: (query: ZhihuVoteQuery) => Promise<ZhihuPageOutcome<ZhihuVoteResult>>;
+    readonly onCollections?: () => Promise<ZhihuPageOutcome<ZhihuCollectionsResult>>;
+    readonly onCollect?: (query: ZhihuCollectQuery) => Promise<ZhihuPageOutcome<ZhihuCollectResult>>;
 }): ReactNode;
 //# sourceMappingURL=ZhihuContent.d.ts.map

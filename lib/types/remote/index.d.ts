@@ -2,7 +2,7 @@
 import { Context } from '@deepseek-ai/cordis';
 import z from '@deepseek-ai/schemastery';
 import { TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol';
-import type { ZhihuClientSettings, ZhihuCommentsQuery, ZhihuCommentsResult, ZhihuExportQuery, ZhihuExportResult, ZhihuFeedQuery, ZhihuFeedResult, ZhihuReadItem, ZhihuReadQuery, ZhihuRepliesQuery, ZhihuSearchQuery, ZhihuSearchResult, ZhihuSyncDocument, ZhihuSyncReadResult, ZhihuSyncSaveResult, ZhihuVoteQuery, ZhihuVoteResult } from './types.ts';
+import type { ZhihuClientSettings, ZhihuCollectQuery, ZhihuCollectResult, ZhihuCollectionsQuery, ZhihuCollectionsResult, ZhihuCommentsQuery, ZhihuCommentsResult, ZhihuExportQuery, ZhihuExportResult, ZhihuFeedQuery, ZhihuFeedResult, ZhihuReadItem, ZhihuReadQuery, ZhihuRepliesQuery, ZhihuSearchQuery, ZhihuSearchResult, ZhihuSyncDocument, ZhihuSyncReadResult, ZhihuSyncSaveResult, ZhihuVoteQuery, ZhihuVoteResult } from './types.ts';
 export type * from './types.ts';
 declare module '@deepseek-ai/cordis' {
     interface Context {
@@ -85,6 +85,19 @@ export default class ZhihuController extends TypertRemoteService {
      */
     vote(request: ZhihuVoteQuery): Promise<ZhihuVoteResult>;
     /**
+     * List the collections the reader keeps items in.
+     * @param request - an optional limit on returned collections.
+     * @returns the collections of the reader's own account, in the order Zhihu lists them.
+     */
+    collections(request: ZhihuCollectionsQuery): Promise<ZhihuCollectionsResult>;
+    /**
+     * Add one answer or article to a collection of the reader, or take it out again. This call changes
+     * the reader's Zhihu account, so only a reader action reaches it: no tool of this plugin collects.
+     * @param request - the content, the collection, and whether it belongs there after the call.
+     * @returns the membership the call left.
+     */
+    collect(request: ZhihuCollectQuery): Promise<ZhihuCollectResult>;
+    /**
      * File one capture into the Obsidian vault, adding a marked passage to the note it came from.
      * @param request - the opened row plus the body the reader already holds.
      * @returns the vault path that was written.
@@ -136,6 +149,12 @@ export default class ZhihuController extends TypertRemoteService {
      * @returns the seam request.
      */
     private resolveVote;
+    /**
+     * Validate one collection change before it reaches the seam.
+     * @param request - the wire request.
+     * @returns the seam request.
+     */
+    private resolveCollect;
     private resolveComments;
     /**
      * Validate one read request against this deployment's limits.

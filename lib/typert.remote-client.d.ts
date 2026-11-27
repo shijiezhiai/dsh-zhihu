@@ -4,10 +4,12 @@ import type {
   TypertRemoteInfo,
   TypertRemoteMethod,
 } from '@deepseek-ai/dsh-typert-protocol'
-import type { ZhihuClientSettings, ZhihuCommentsQuery, ZhihuCommentsResult, ZhihuExportQuery, ZhihuExportResult, ZhihuFeedQuery, ZhihuFeedResult, ZhihuReadItem, ZhihuReadQuery, ZhihuRepliesQuery, ZhihuSearchQuery, ZhihuSearchResult, ZhihuSyncDocument, ZhihuSyncReadResult, ZhihuSyncSaveResult, ZhihuVoteQuery, ZhihuVoteResult } from '@mayangyang/dsh-zhihu/types'
+import type { ZhihuClientSettings, ZhihuCollectionsQuery, ZhihuCollectionsResult, ZhihuCollectQuery, ZhihuCollectResult, ZhihuCommentsQuery, ZhihuCommentsResult, ZhihuExportQuery, ZhihuExportResult, ZhihuFeedQuery, ZhihuFeedResult, ZhihuReadItem, ZhihuReadQuery, ZhihuRepliesQuery, ZhihuSearchQuery, ZhihuSearchResult, ZhihuSyncDocument, ZhihuSyncReadResult, ZhihuSyncSaveResult, ZhihuVoteQuery, ZhihuVoteResult } from '@mayangyang/dsh-zhihu/types'
 
 declare module '@deepseek-ai/dsh-typert-protocol' {
   interface TypertRemoteNamespace$7a68696875 {
+    collect: (request: ZhihuCollectQuery) => Promise<RemoteResult<ZhihuCollectResult>>
+    collections: (request: ZhihuCollectionsQuery) => Promise<RemoteResult<ZhihuCollectionsResult>>
     comments: (request: ZhihuCommentsQuery) => Promise<RemoteResult<ZhihuCommentsResult>>
     export: (request: ZhihuExportQuery) => Promise<RemoteResult<ZhihuExportResult>>
     feed: (request: ZhihuFeedQuery) => Promise<RemoteResult<ZhihuFeedResult>>
@@ -20,6 +22,8 @@ declare module '@deepseek-ai/dsh-typert-protocol' {
     vote: (request: ZhihuVoteQuery) => Promise<RemoteResult<ZhihuVoteResult>>
   }
   interface TypertRemoteMap {
+    'zhihu/collect': (request: ZhihuCollectQuery) => Promise<RemoteResult<ZhihuCollectResult>>
+    'zhihu/collections': (request: ZhihuCollectionsQuery) => Promise<RemoteResult<ZhihuCollectionsResult>>
     'zhihu/comments': (request: ZhihuCommentsQuery) => Promise<RemoteResult<ZhihuCommentsResult>>
     'zhihu/export': (request: ZhihuExportQuery) => Promise<RemoteResult<ZhihuExportResult>>
     'zhihu/feed': (request: ZhihuFeedQuery) => Promise<RemoteResult<ZhihuFeedResult>>
@@ -37,6 +41,8 @@ declare module '@deepseek-ai/dsh-typert-protocol' {
 }
 
 export declare const TYPERT_REMOTE: TypertRemoteInfo<{
+  readonly 'zhihu/collect': TypertRemoteMethod<{ readonly 'request': ZhihuCollectQuery }, ZhihuCollectResult>
+  readonly 'zhihu/collections': TypertRemoteMethod<{ readonly 'request': ZhihuCollectionsQuery }, ZhihuCollectionsResult>
   readonly 'zhihu/comments': TypertRemoteMethod<{ readonly 'request': ZhihuCommentsQuery }, ZhihuCommentsResult>
   readonly 'zhihu/export': TypertRemoteMethod<{ readonly 'request': ZhihuExportQuery }, ZhihuExportResult>
   readonly 'zhihu/feed': TypertRemoteMethod<{ readonly 'request': ZhihuFeedQuery }, ZhihuFeedResult>

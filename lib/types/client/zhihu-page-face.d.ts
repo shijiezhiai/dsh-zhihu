@@ -8,7 +8,7 @@
  */
 import type { ClientRemote } from '@deepseek-ai/dsh-api-gateway/client';
 import type { RemoteFailure } from '@deepseek-ai/dsh-api-remotes/client';
-import type { ZhihuClientSettings, ZhihuCommentsResult, ZhihuExportQuery, ZhihuExportResult, ZhihuFeedQuery, ZhihuFeedResult, ZhihuFeedRow, ZhihuFeedSort, ZhihuFeedTimeWindow, ZhihuReadItem, ZhihuSyncDocument, ZhihuSyncReadResult, ZhihuSyncSaveResult, ZhihuVoteQuery, ZhihuVoteResult } from '@deepseek-ai/dsh-zhihu-plugin/types';
+import type { ZhihuClientSettings, ZhihuCollectQuery, ZhihuCollectResult, ZhihuCollectionsResult, ZhihuCommentsResult, ZhihuExportQuery, ZhihuExportResult, ZhihuFeedQuery, ZhihuFeedResult, ZhihuFeedRow, ZhihuFeedSort, ZhihuFeedTimeWindow, ZhihuReadItem, ZhihuSyncDocument, ZhihuSyncReadResult, ZhihuSyncSaveResult, ZhihuVoteQuery, ZhihuVoteResult } from '@deepseek-ai/dsh-zhihu-plugin/types';
 /** Either a returned value or the Remote failure that refused it. */
 export type ZhihuPageOutcome<T> = {
     readonly ok: true;
@@ -69,6 +69,18 @@ export interface ZhihuPageFace {
      * @returns the count the vote left and the state the reader now holds, or the refusal.
      */
     vote(query: ZhihuVoteQuery): Promise<ZhihuPageOutcome<ZhihuVoteResult>>;
+    /**
+     * Read the collections of the reader's own account.
+     * @param limit - collections requested; omitted reads the page's default slice.
+     * @returns the collections, or the refusal.
+     */
+    collections(limit?: number): Promise<ZhihuPageOutcome<ZhihuCollectionsResult>>;
+    /**
+     * Add the open row to one collection of the reader, or take it out again.
+     * @param query - content kind, lossless id, collection id, and whether it belongs there.
+     * @returns the membership the call left, or the refusal.
+     */
+    collect(query: ZhihuCollectQuery): Promise<ZhihuPageOutcome<ZhihuCollectResult>>;
     /**
      * Read the deployment settings this page applies. A Client whose Host publishes no namespace, or
      * a refused call, leaves the page on its own cap, so this reports no failure of its own.

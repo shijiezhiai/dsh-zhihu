@@ -16,7 +16,7 @@ import type { ClientRemote } from '@deepseek-ai/dsh-api-gateway/client';
 import type { BoundActions } from '@deepseek-ai/dsh-client-store';
 import type { TabId } from '@deepseek-ai/dsh-client-ui-dockkit';
 import type { SessionId } from '@deepseek-ai/dsh-session/types';
-import type { ZhihuCommentsResult, ZhihuFeedRow, ZhihuReadItem, ZhihuVoteQuery, ZhihuVoteResult } from '@deepseek-ai/dsh-zhihu-plugin/types';
+import type { ZhihuCollectQuery, ZhihuCollectResult, ZhihuCollectionsResult, ZhihuCommentsResult, ZhihuFeedRow, ZhihuReadItem, ZhihuVoteQuery, ZhihuVoteResult } from '@deepseek-ai/dsh-zhihu-plugin/types';
 import type { ZhihuPageOutcome } from './zhihu-page-face.ts';
 import type { ZhihuAskOutcome } from './zhihu-ask.ts';
 import type { ZhihuPanelSegment, ZhihuPanelStore } from './zhihu-panel-store.ts';
@@ -59,6 +59,18 @@ export interface ZhihuPanelInjected {
      * @returns the count the vote left and the state the reader now holds, or the refusal.
      */
     vote(query: ZhihuVoteQuery): Promise<ZhihuPageOutcome<ZhihuVoteResult>>;
+    /**
+     * Read the collections of the reader's own account.
+     * @param limit - collections requested; omitted reads the default slice.
+     * @returns the collections, or the refusal.
+     */
+    collections(limit?: number): Promise<ZhihuPageOutcome<ZhihuCollectionsResult>>;
+    /**
+     * Add the open row to one collection of the reader, or take it out again.
+     * @param query - content kind, lossless id, collection id, and whether it belongs there.
+     * @returns the membership the call left, or the refusal.
+     */
+    collect(query: ZhihuCollectQuery): Promise<ZhihuPageOutcome<ZhihuCollectResult>>;
     /**
      * Draft a conversation about the open row into a Workspace session.
      * @param row - the row the reader has open.

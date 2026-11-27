@@ -10,6 +10,10 @@ import { Context, Service, type Volatile } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { HarnessError } from '@deepseek-ai/dsh-llm'
 import type {
+  ZhihuCollectRequest,
+  ZhihuCollectResult,
+  ZhihuCollection,
+  ZhihuCollectionsRequest,
   ZhihuCommentsPage,
   ZhihuCommentsRequest,
   ZhihuErrorCode,
@@ -26,6 +30,11 @@ import type {
 } from './types.ts'
 
 export type {
+  ZhihuCollectableKind,
+  ZhihuCollectRequest,
+  ZhihuCollectResult,
+  ZhihuCollection,
+  ZhihuCollectionsRequest,
   ZhihuComment,
   ZhihuCommentsPage,
   ZhihuCommentsRequest,
@@ -208,6 +217,27 @@ export class ZhihuService extends Service {
       items: capItems([...page.items], request.limit),
       ...(page.total === undefined ? {} : { total: page.total }),
     }
+  }
+
+  /**
+   * List the collections the reader keeps items in, through the selected provider.
+   * @param request - an optional limit on returned collections.
+   * @param signal - cancellation of the call.
+   * @returns the collections the payload named, in its order.
+   */
+  async collections(request: ZhihuCollectionsRequest, signal?: AbortSignal): Promise<readonly ZhihuCollection[]> {
+    return capItems([...(await this.selectProvider().collections(request, signal))], request.limit)
+  }
+
+  /**
+   * Add one answer or article to a collection of the reader, or take it out again, through the
+   * selected provider.
+   * @param request - the content, the collection, and whether it belongs there after the call.
+   * @param signal - cancellation of the call.
+   * @returns the membership the call left.
+   */
+  async collect(request: ZhihuCollectRequest, signal?: AbortSignal): Promise<ZhihuCollectResult> {
+    return await this.selectProvider().collect(request, signal)
   }
 
   /**

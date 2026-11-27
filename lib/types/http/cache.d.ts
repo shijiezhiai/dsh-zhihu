@@ -38,6 +38,13 @@ export declare class ZhihuCachedTransport implements ZhihuTransport {
      */
     post<T>(url: string, body: string, signal?: AbortSignal): Promise<T>;
     /**
+     * Send one delete straight through, for the same reason a POST bypasses the cache.
+     * @param url - absolute request URL.
+     * @param signal - cancellation of the call.
+     * @returns the parsed body.
+     */
+    delete<T>(url: string, signal?: AbortSignal): Promise<T>;
+    /**
      * Drop every entry whose lifetime has elapsed. Called before a store so that keys a caller never
      * re-requests do not accumulate for the life of the plugin mount.
      */

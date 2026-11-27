@@ -284,6 +284,46 @@ export interface ZhihuVoteResult {
   readonly voted: boolean
 }
 
+/** Content kinds a collection can hold; a question is followed rather than collected. */
+export type ZhihuCollectableKind = 'answer' | 'article'
+
+/** One collection the reader keeps items in. */
+export interface ZhihuCollection {
+  /** Lossless decimal collection id. */
+  readonly id: string
+  /** Title the reader gave it. */
+  readonly title: string
+  /** Number of items it holds. */
+  readonly itemCount: number
+}
+
+/** One request for the collections of the reader's own account. */
+export interface ZhihuCollectionsRequest {
+  /** Upper bound on returned collections; omitted reads the provider's page size. */
+  readonly limit?: number
+}
+
+/**
+ * One change to a collection of the reader's own account. It changes state there, so only a reader
+ * action sends one: no tool of this plugin collects.
+ */
+export interface ZhihuCollectRequest {
+  /** Which kind of content `id` addresses. */
+  readonly kind: ZhihuCollectableKind
+  /** Lossless decimal content id. */
+  readonly id: string
+  /** Lossless decimal id of the collection that gains or loses the item. */
+  readonly collectionId: string
+  /** Whether the item belongs in that collection after the call. */
+  readonly collected: boolean
+}
+
+/** What one collection change answered. */
+export interface ZhihuCollectResult {
+  /** True when the item belongs in the collection after the call. */
+  readonly collected: boolean
+}
+
 /**
  * One backend that can serve `ctx.zhihu`. Providers register themselves with the service and
  * answer `available()` per call, so selection reflects credentials that changed at runtime.
@@ -329,6 +369,22 @@ export interface ZhihuProvider {
    * @returns one slice of the replies; the seam caps them to `request.limit`.
    */
   replies(request: ZhihuRepliesRequest, signal?: AbortSignal): Promise<ZhihuCommentsPage>
+
+  /**
+   * List the collections the reader keeps items in.
+   * @param request - an optional limit on returned collections.
+   * @param signal - cancellation of the call; a provider must stop its own work when it aborts.
+   * @returns the collections the payload named, in its order.
+   */
+  collections(request: ZhihuCollectionsRequest, signal?: AbortSignal): Promise<readonly ZhihuCollection[]>
+
+  /**
+   * Add one answer or article to a collection of the reader, or take it out again.
+   * @param request - the content, the collection, and whether it belongs there after the call.
+   * @param signal - cancellation of the call; a provider must stop its own work when it aborts.
+   * @returns the membership the call left.
+   */
+  collect(request: ZhihuCollectRequest, signal?: AbortSignal): Promise<ZhihuCollectResult>
 
   /**
    * Cast or withdraw the reader's upvote on one answer or article.

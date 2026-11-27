@@ -9,5 +9,5 @@ export type ZhihuPanelProps = PropsRuntime<'sidebar.right.pane.tab'> & PropsStor
  * @param props - the slot's runtime seats, the panel store, the injected face, and copy.
  * @returns the panel element.
  */
-export declare function ZhihuPanel({ useTabInfo, useStore, actions, load, read, ask, comments, replies, vote, t, }: ZhihuPanelProps): ReactNode;
+export declare function ZhihuPanel({ useTabInfo, useStore, actions, load, read, ask, comments, replies, vote, collections, collect, t, }: ZhihuPanelProps): ReactNode;
 //# sourceMappingURL=ZhihuPanel.d.ts.map

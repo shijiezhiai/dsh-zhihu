@@ -3,11 +3,12 @@
 // markup, so a row reads the same wherever it is opened.
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import type { KeyboardEvent, ReactNode } from 'react'
-import { Button, MarkdownText, Tag } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, MarkdownText, Menu, Tag } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { MarkdownLabels } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { RemoteFailure } from '@deepseek-ai/dsh-api-remotes/client'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import type {
+  ZhihuCollectQuery, ZhihuCollectResult, ZhihuCollectionRow, ZhihuCollectionsResult,
   ZhihuCommentRow, ZhihuCommentsResult, ZhihuFeedRow, ZhihuReadItem, ZhihuVoteQuery, ZhihuVoteResult,
 } from '@deepseek-ai/dsh-zhihu-plugin/types'
 import type { ZhihuPageOutcome } from './zhihu-page-face.ts'
@@ -500,7 +501,119 @@ function ZhihuVote({ kind, id, count, t, cast }: {
           {state.voted ? t('read.upvoted') : t('read.upvote')}
         </Button>
       )}
-      {state.failure !== undefined && <span className={css.voteFailure}>{zhihuPanelFailureLine(t, state.failure)}</span>}
+      {state.failure !== undefined && <span className={css.writeFailure}>{zhihuPanelFailureLine(t, state.failure)}</span>}
+    </>
+  )
+}
+
+/** Collections the reader's own account holds, as the menu needs them. */
+interface ZhihuCollectionList {
+  readonly status: 'idle' | 'loading' | 'ready'
+  readonly items: readonly ZhihuCollectionRow[]
+}
+
+/** What one collection change left behind: the collection holding the row, and a refusal to report. */
+interface ZhihuCollectState {
+  readonly saved?: ZhihuCollectionRow
+  readonly busy: boolean
+  readonly failure?: RemoteFailure
+}
+
+/** Menu id that names no collection, so a row with nothing to pick still closes the menu. */
+const NO_COLLECTION = ''
+
+/**
+ * Render the collection control of one opened row: a button that files the row into one of the
+ * reader's collections, and takes it out again when that same collection is picked twice.
+ *
+ * A read names no item's memberships, so the check mark follows what this surface did itself; a
+ * collection filled on another machine or in the Zhihu app reads as untouched.
+ * @param props.kind - content kind the row links to; a question is followed, not collected.
+ * @param props.id - lossless content id.
+ * @param props.t - copy of the Zhihu namespace.
+ * @param props.collections - lists the reader's own collections.
+ * @param props.collect - adds the row to a collection or removes it again.
+ * @returns the button, its menu of collections, and any refusal.
+ */
+function ZhihuCollect({ kind, id, t, collections, collect }: {
+  readonly kind: ZhihuCollectQuery['kind']
+  readonly id: string
+  readonly t: ZhihuTranslate
+  readonly collections: () => Promise<ZhihuPageOutcome<ZhihuCollectionsResult>>
+  readonly collect: (query: ZhihuCollectQuery) => Promise<ZhihuPageOutcome<ZhihuCollectResult>>
+}): ReactNode {
+  const [open, setOpen] = useState(false)
+  const [list, setList] = useState<ZhihuCollectionList>({ status: 'idle', items: [] })
+  const [state, setState] = useState<ZhihuCollectState>({ busy: false })
+  // The list is asked for once per opening: the request settles after the effect ran, so its own
+  // status change must not restart it.
+  const asked = useRef(false)
+  useEffect(() => {
+    if (!open || asked.current) return
+    asked.current = true
+    let live = true
+    setList({ status: 'loading', items: [] })
+    void collections().then((outcome) => {
+      if (!live) return
+      if (!outcome.ok) {
+        setList({ status: 'idle', items: [] })
+        setState(previous => ({
+          busy: false,
+          ...(previous.saved === undefined ? {} : { saved: previous.saved }),
+          failure: outcome.failure,
+        }))
+        return
+      }
+      setList({ status: 'ready', items: outcome.value.items })
+    })
+    return () => {
+      live = false
+      asked.current = false
+    }
+  }, [collections, open])
+  const pick = (collectionId: string): void => {
+    if (state.busy) return
+    const removing = state.saved?.id === collectionId
+    setState({ busy: true, ...(state.saved === undefined ? {} : { saved: state.saved }) })
+    void collect({ kind, id, collectionId, collected: !removing }).then((outcome) => {
+      if (!outcome.ok) {
+        setState({ busy: false, ...(state.saved === undefined ? {} : { saved: state.saved }), failure: outcome.failure })
+        return
+      }
+      const picked = list.items.find(item => item.id === collectionId)
+      setState({ busy: false, ...(outcome.value.collected && picked !== undefined ? { saved: picked } : {}) })
+    })
+  }
+  const items = list.items.length === 0
+    ? [{ id: NO_COLLECTION, label: list.status === 'loading' ? t('card.loading') : t('read.noCollections') }]
+    : list.items.map(item => ({ id: item.id, label: item.title }))
+  return (
+    <>
+      <Menu
+        open={open}
+        onClose={() => { setOpen(false) }}
+        items={items}
+        selectedId={state.saved?.id}
+        onSelect={(collectionId) => {
+          setOpen(false)
+          if (collectionId !== NO_COLLECTION) pick(collectionId)
+        }}
+        portal
+        anchor={(
+          <Button
+            variant="ghost"
+            size="sm"
+            disabled={state.busy}
+            aria-haspopup="menu"
+            aria-expanded={open}
+            aria-label={t('read.collect')}
+            onClick={() => { setOpen(!open) }}
+          >
+            {state.saved === undefined ? t('read.collect') : t('read.collected')}
+          </Button>
+        )}
+      />
+      {state.failure !== undefined && <span className={css.writeFailure}>{zhihuPanelFailureLine(t, state.failure)}</span>}
     </>
   )
 }
@@ -514,10 +627,12 @@ function ZhihuVote({ kind, id, count, t, cast }: {
  * @param props.onComments - reads the row's thread; omitted where the seat has no comment lane.
  * @param props.onReplies - reads a comment's replies; omitted where the seat has no reply lane.
  * @param props.onVote - casts the reader's own upvote; omitted where the seat cannot write one.
+ * @param props.onCollections - lists the reader's own collections; omitted where the seat cannot write.
+ * @param props.onCollect - files the row into a collection; omitted where the seat cannot write.
  * @returns the opened row.
  */
 export function ZhihuOpenedContent<R extends ZhihuFeedRow>({
-  state, t, onRetry, onAsk, onComments, onReplies, onVote,
+  state, t, onRetry, onAsk, onComments, onReplies, onVote, onCollections, onCollect,
 }: {
   readonly state: ZhihuOpenedRow<R>
   readonly t: ZhihuTranslate
@@ -526,7 +641,12 @@ export function ZhihuOpenedContent<R extends ZhihuFeedRow>({
   readonly onComments?: (row: ZhihuFeedRow, limit: number) => Promise<ZhihuPageOutcome<ZhihuCommentsResult>>
   readonly onReplies?: (commentId: string, limit: number) => Promise<ZhihuPageOutcome<ZhihuCommentsResult>>
   readonly onVote?: (query: ZhihuVoteQuery) => Promise<ZhihuPageOutcome<ZhihuVoteResult>>
+  readonly onCollections?: () => Promise<ZhihuPageOutcome<ZhihuCollectionsResult>>
+  readonly onCollect?: (query: ZhihuCollectQuery) => Promise<ZhihuPageOutcome<ZhihuCollectResult>>
 }): ReactNode {
+  const collectable = onCollections !== undefined && onCollect !== undefined && state.row.kind !== 'question'
+    ? state.row.kind
+    : undefined
   return (
     <div className={css.content}>
       <h3 className={css.detailTitle}>
@@ -568,6 +688,15 @@ export function ZhihuOpenedContent<R extends ZhihuFeedRow>({
             t={t}
             {...(onVote === undefined ? {} : { cast: onVote })}
           />
+          {collectable !== undefined && onCollections !== undefined && onCollect !== undefined && (
+            <ZhihuCollect
+              kind={collectable}
+              id={state.row.id}
+              t={t}
+              collections={onCollections}
+              collect={onCollect}
+            />
+          )}
         </p>
       )}
       <a className={css.original} href={state.row.url} target="_blank" rel="noreferrer">

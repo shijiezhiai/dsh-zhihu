@@ -6,7 +6,8 @@ import { ZhihuError } from '../service/index.ts'
 import type { ZhihuErrorCode, ZhihuFeedRequest, ZhihuReadRequest } from '../service/index.ts'
 import { credentialRef } from '@deepseek-ai/dsh-credentials'
 import type {
-  ZhihuClientSettings, ZhihuCommentsQuery, ZhihuCommentsResult, ZhihuExportQuery, ZhihuExportResult,
+  ZhihuClientSettings, ZhihuCollectQuery, ZhihuCollectResult, ZhihuCollectionsQuery, ZhihuCollectionsResult,
+  ZhihuCommentsQuery, ZhihuCommentsResult, ZhihuExportQuery, ZhihuExportResult,
   ZhihuFailureTarget, ZhihuFeedQuery, ZhihuFeedResult, ZhihuFeedSort, ZhihuFeedTimeWindow,
   ZhihuReadItem, ZhihuReadQuery, ZhihuRemoteFailureCode, ZhihuRepliesQuery,
   ZhihuSearchQuery, ZhihuSearchResult, ZhihuSyncDocument, ZhihuSyncReadResult, ZhihuSyncSaveResult,
@@ -59,6 +60,9 @@ const FEED_SORTS: readonly ZhihuFeedSort[] = ['relevance', 'newest', 'top']
 
 /** Votes a vote call accepts, in the order a reader meets them. */
 const VOTES: readonly ZhihuVoteQuery['vote'][] = ['up', 'none']
+
+/** Content kinds a collection change accepts; a question is followed rather than collected. */
+const COLLECT_KINDS: readonly ZhihuCollectQuery['kind'][] = ['answer', 'article']
 
 /** Time windows a `topic` feed accepts, narrowest first. */
 const FEED_WINDOWS: readonly ZhihuFeedTimeWindow[] = ['day', 'week', 'month', 'year']
@@ -291,6 +295,42 @@ export default class ZhihuController extends TypertRemoteService {
   }
 
   /**
+   * List the collections the reader keeps items in.
+   * @param request - an optional limit on returned collections.
+   * @returns the collections of the reader's own account, in the order Zhihu lists them.
+   */
+  @Remote
+  async collections(request: ZhihuCollectionsQuery): Promise<ZhihuCollectionsResult> {
+    const limit = request.limit === undefined ? this.config.defaultLimit : requireLimit(request.limit)
+    try {
+      const items = await this.ctx.zhihu.collections({ limit: Math.min(limit, this.config.maxLimit) })
+      return { items: items.map(({ id, title, itemCount }) => ({ id, title, itemCount })) }
+    } catch (error) {
+      const failure = seamFailure(error, 'collections')
+      if (failure === undefined) throw error
+      throw failure
+    }
+  }
+
+  /**
+   * Add one answer or article to a collection of the reader, or take it out again. This call changes
+   * the reader's Zhihu account, so only a reader action reaches it: no tool of this plugin collects.
+   * @param request - the content, the collection, and whether it belongs there after the call.
+   * @returns the membership the call left.
+   */
+  @Remote
+  async collect(request: ZhihuCollectQuery): Promise<ZhihuCollectResult> {
+    const query = this.resolveCollect(request)
+    try {
+      return await this.ctx.zhihu.collect(query)
+    } catch (error) {
+      const failure = seamFailure(error, query.kind)
+      if (failure === undefined) throw error
+      throw failure
+    }
+  }
+
+  /**
    * File one capture into the Obsidian vault, adding a marked passage to the note it came from.
    * @param request - the opened row plus the body the reader already holds.
    * @returns the vault path that was written.
@@ -451,6 +491,26 @@ export default class ZhihuController extends TypertRemoteService {
       throw new RemoteError('gateway/bad-request', 'id must not be empty', {})
     }
     return { kind: request.kind, id: request.id, vote: readMember(VOTES, request.vote, 'vote') }
+  }
+
+  /**
+   * Validate one collection change before it reaches the seam.
+   * @param request - the wire request.
+   * @returns the seam request.
+   */
+  private resolveCollect(request: ZhihuCollectQuery): ZhihuCollectQuery {
+    if (request.id.length === 0) {
+      throw new RemoteError('gateway/bad-request', 'id must not be empty', {})
+    }
+    if (request.collectionId.length === 0) {
+      throw new RemoteError('gateway/bad-request', 'collectionId must not be empty', {})
+    }
+    return {
+      kind: readMember(COLLECT_KINDS, request.kind, 'kind'),
+      id: request.id,
+      collectionId: request.collectionId,
+      collected: request.collected,
+    }
   }
 
   private resolveComments(request: ZhihuCommentsQuery): ZhihuCommentsQuery {
