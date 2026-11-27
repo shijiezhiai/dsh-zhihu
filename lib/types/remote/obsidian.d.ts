@@ -32,8 +32,11 @@ export declare function noteName(title: string, id: string): string;
  * @returns `<folder>/<name>.md`, or `<name>.md` for a root folder.
  */
 export declare function notePath(folder: string, name: string): string;
-/** Name of the vault file that carries the page two machines share. */
-export declare const STATE_NAME = ".zhihu-page.json";
+/**
+ * Name of the vault file that carries the page two machines share. It leads with
+ * no dot: the vault ignores dot files, so it neither indexes nor syncs one.
+ */
+export declare const STATE_NAME = "zhihu-page.json";
 /**
  * Vault-relative path of the shared page state.
  * @param folder - vault folder holding the notes; empty writes to the vault root.

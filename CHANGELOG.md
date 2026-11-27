@@ -2,6 +2,12 @@
 
 Every tag publishes the prebuilt tarball the plugin-market entry installs, at `https://github.com/shijiezhiai/dsh-zhihu/releases/download/v<version>/dsh-zhihu.tgz`; the asset name stays `dsh-zhihu.tgz`, so a version is identified by its URL.
 
+## 1.15.1
+
+### Fixed
+
+- The shared page is written to `zhihu-page.json` instead of a dot file, which the Obsidian vault neither lists nor syncs, and its body travels as the media type the Local REST API accepts there; `application/json` is answered with 500 on that endpoint even when the bytes land, so the page never recorded a save. A `.zhihu-page.json` that 1.15.0 could have left behind is ignored and can be deleted.
+
 ## 1.15.0
 
 ### Added

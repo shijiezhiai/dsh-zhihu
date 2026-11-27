@@ -61,8 +61,11 @@ export function notePath(folder: string, name: string): string {
   return dir === '' ? `${name}.md` : `${dir}/${name}.md`
 }
 
-/** Name of the vault file that carries the page two machines share. */
-export const STATE_NAME = '.zhihu-page.json'
+/**
+ * Name of the vault file that carries the page two machines share. It leads with
+ * no dot: the vault ignores dot files, so it neither indexes nor syncs one.
+ */
+export const STATE_NAME = 'zhihu-page.json'
 
 /**
  * Vault-relative path of the shared page state.
@@ -249,6 +252,13 @@ export async function readNote(target: ObsidianTarget, path: string): Promise<st
 }
 
 /**
+ * Media type the state document is sent as. The extension names it as JSON, and the
+ * Local REST API answers `application/json` with 500 there, so the body travels as
+ * Markdown type the endpoint accepts and the reader parses it by its extension.
+ */
+const DOCUMENT_MEDIA = 'text/markdown'
+
+/**
  * Write the page state two machines share.
  * @param target - endpoint, folder and token.
  * @param path - vault-relative path of the state document.
@@ -257,7 +267,7 @@ export async function readNote(target: ObsidianTarget, path: string): Promise<st
  * @throws ObsidianError when the endpoint refuses or cannot be reached.
  */
 export async function writeDocument(target: ObsidianTarget, path: string, text: string): Promise<string> {
-  return await writeVaultFile(target, path, text, 'application/json', 'reading state')
+  return await writeVaultFile(target, path, text, DOCUMENT_MEDIA, 'reading state')
 }
 
 /**
@@ -268,7 +278,7 @@ export async function writeDocument(target: ObsidianTarget, path: string, text: 
  * @throws ObsidianError when the endpoint answers with anything but the document or its absence.
  */
 export async function readDocument(target: ObsidianTarget, path: string): Promise<string | undefined> {
-  return await readVaultFile(target, path, 'application/json', 'reading state')
+  return await readVaultFile(target, path, DOCUMENT_MEDIA, 'reading state')
 }
 
 /**
