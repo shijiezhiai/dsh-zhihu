@@ -45,6 +45,21 @@ export interface ZhihuSearchTab {
 /** How many searches the page keeps, so a long reading session does not grow the stored state. */
 export const ZHIHU_SEARCH_TABS = 8
 
+/** One keyword the page watches, with the rows that answered it and the order they were read in. */
+export interface ZhihuTopicTab {
+  /** The keyword that produced the rows, which also names the tab. */
+  readonly topic: string
+  /** The order its rows were listed in; absent keeps Zhihu's own relevance order. */
+  readonly sort?: ZhihuFeedSort
+  /** How far back the read reached; absent keeps entries of every age. */
+  readonly timeWindow?: ZhihuFeedTimeWindow
+  /** The rows as that read left them. */
+  readonly lane: ZhihuPageLane
+}
+
+/** How many keywords the page keeps, so a long watching session does not grow the stored state. */
+export const ZHIHU_TOPIC_TABS = 8
+
 /** The row the page shows on its own, with how far into its body the reader got. */
 export interface ZhihuPageReading {
   /** The row the reader opened. */
@@ -142,19 +157,31 @@ export interface ZhihuPageState {
   /** The search text the input shows. */
   query: string
   /**
-   * The keyword the topic lane reads, as its input shows it.
+   * The keyword the topic input shows.
    * A state persisted before topic lanes existed restores without the field, so readers default it.
    */
   topic?: string
   /**
-   * Order the topic lane lists its rows in.
-   * A state persisted before the topic lane could be ordered restores without the field, so readers
-   * default it to Zhihu's relevance order.
+   * The keyword whose rows are on screen; absent when the reader submitted none.
+   * A state persisted before topic tabs existed restores without the field, so readers go through
+   * {@link zhihuTopics}.
+   */
+  activeTopic?: string
+  /**
+   * The keywords the page watches, oldest first, so a second keyword adds a tab instead of
+   * replacing the rows of the first.
+   * A state persisted before topic tabs existed restores without the field, so readers go through
+   * {@link zhihuTopics}.
+   */
+  topics?: readonly ZhihuTopicTab[]
+  /**
+   * Order the one topic lane of a state persisted before topic tabs existed listed its rows in.
+   * Read it through {@link zhihuTopics}, which folds it into its own tab.
    */
   topicSort?: ZhihuFeedSort
   /**
-   * How far back the topic lane reaches; absent keeps entries of every age.
-   * A state persisted before the topic lane could be windowed restores without the field.
+   * How far back that lane reached; absent keeps entries of every age.
+   * Read it through {@link zhihuTopics}, which folds it into its own tab.
    */
   topicWindow?: ZhihuFeedTimeWindow
   /**
@@ -230,12 +257,44 @@ export type ZhihuPageActions = {
    */
   topicTyped(draft: ZhihuPageState, topic: string): void
   /**
-   * Record the order and the time window the reader picked for the topic lane.
+   * Open a keyword tab, or the one a repeated keyword already named, and show it.
+   * @param draft - the current state.
+   * @param topic - the keyword the reader submitted.
+   */
+  topicOpened(draft: ZhihuPageState, topic: string): void
+  /**
+   * Show one keyword tab the reader already has.
+   * @param draft - the current state.
+   * @param topic - the keyword to show.
+   */
+  topicShown(draft: ZhihuPageState, topic: string): void
+  /**
+   * Close one keyword tab, moving to a neighbour when the closed one was on screen.
+   * @param draft - the current state.
+   * @param topic - the keyword to stop watching.
+   */
+  topicClosed(draft: ZhihuPageState, topic: string): void
+  /**
+   * Record the order and the time window the reader picked for the keyword on screen.
    * @param draft - the current state.
    * @param sort - the order its rows are listed in.
    * @param timeWindow - how far back the lane reaches; undefined keeps every age.
    */
   topicOrdered(draft: ZhihuPageState, sort: ZhihuFeedSort, timeWindow: ZhihuFeedTimeWindow | undefined): void
+  /**
+   * Replace one keyword tab's rows with a first page.
+   * @param draft - the current state.
+   * @param topic - the keyword that answered.
+   * @param lane - the rows and continuation of that page.
+   */
+  topicLoaded(draft: ZhihuPageState, topic: string, lane: ZhihuPageLane): void
+  /**
+   * Extend one keyword tab with a continuation page.
+   * @param draft - the current state.
+   * @param topic - the keyword that answered.
+   * @param lane - the rows of the continuation and the token that follows them.
+   */
+  topicAppended(draft: ZhihuPageState, topic: string, lane: ZhihuPageLane): void
   /**
    * Open a search tab, or the one a repeated query already named, and show it.
    * @param draft - the current state.
@@ -385,6 +444,53 @@ export function zhihuSearches(state: ZhihuPageState): readonly ZhihuSearchTab[] 
 }
 
 /**
+ * Read the keywords a stored page keeps from the fields that carry them.
+ * @param topics - the tabs a state persisted with topic tabs carries.
+ * @param topic - the keyword of a state persisted before tabs existed.
+ * @param sort - the order that lane was read in.
+ * @param timeWindow - how far back that lane reached.
+ * @param lane - the rows that lane held.
+ * @returns the tabs, oldest first; a keyword nobody typed keeps no tab at all.
+ */
+export function zhihuTopicTabs(
+  topics: readonly ZhihuTopicTab[] | undefined,
+  topic: string | undefined,
+  sort: ZhihuFeedSort | undefined,
+  timeWindow: ZhihuFeedTimeWindow | undefined,
+  lane: ZhihuPageLane | undefined,
+): readonly ZhihuTopicTab[] {
+  if (topics !== undefined) return topics
+  const keyword = (topic ?? '').trim()
+  if (keyword === '') return []
+  return [{
+    topic: keyword,
+    ...(sort === undefined ? {} : { sort }),
+    ...(timeWindow === undefined ? {} : { timeWindow }),
+    lane: lane ?? emptyLane(),
+  }]
+}
+
+/**
+ * Read the keywords one page state keeps.
+ * @param state - the page state.
+ * @returns the tabs, oldest first, folding a state persisted before tabs existed into one.
+ */
+export function zhihuTopics(state: ZhihuPageState): readonly ZhihuTopicTab[] {
+  return zhihuTopicTabs(state.topics, state.topic, state.topicSort, state.topicWindow, state.feeds.topic)
+}
+
+/**
+ * Name the keyword whose rows are on screen.
+ * @param state - the page state.
+ * @returns that keyword, or undefined when nothing is watched yet.
+ */
+export function zhihuActiveTopic(state: ZhihuPageState): string | undefined {
+  if (state.activeTopic !== undefined) return state.activeTopic
+  const topics = zhihuTopics(state)
+  return topics.length === 0 ? undefined : topics[0]?.topic
+}
+
+/**
  * Mark how the rows of a first page moved against the rows the lane listed before it.
  * @param previous - the rows the lane held before this read, in their order; empty when nothing
  * was read yet, which leaves nothing to compare against.
@@ -440,10 +546,64 @@ export function createZhihuPageStore(): ZhihuPageStore {
       show: (draft, tab) => { draft.tab = tab },
       typed: (draft, query) => { draft.query = query },
       topicTyped: (draft, topic) => { draft.topic = topic },
+      topicOpened: (draft, topic) => {
+        const trimmed = topic.trim()
+        if (trimmed === '') return
+        const tabs = zhihuTopics(draft)
+        draft.topics = tabs.some(tab => tab.topic === trimmed)
+          ? tabs
+          : [...tabs, { topic: trimmed, lane: emptyLane() }].slice(-ZHIHU_TOPIC_TABS)
+        draft.activeTopic = trimmed
+        draft.topic = trimmed
+        // The folded lane and its order now live in a tab, so the fields that carried them are spent.
+        delete draft.feeds.topic
+        delete draft.topicSort
+        delete draft.topicWindow
+      },
+      topicShown: (draft, topic) => {
+        draft.activeTopic = topic
+        draft.topic = topic
+      },
+      topicClosed: (draft, topic) => {
+        const tabs = zhihuTopics(draft)
+        const index = tabs.findIndex(tab => tab.topic === topic)
+        if (index < 0) return
+        const remaining = tabs.filter(tab => tab.topic !== topic)
+        draft.topics = remaining
+        if (draft.activeTopic !== topic) return
+        const next = remaining[index] ?? remaining[index - 1]
+        if (next === undefined) {
+          delete draft.activeTopic
+          draft.topic = ''
+          return
+        }
+        draft.activeTopic = next.topic
+        draft.topic = next.topic
+      },
       topicOrdered: (draft, sort, timeWindow) => {
-        draft.topicSort = sort
-        if (timeWindow === undefined) delete draft.topicWindow
-        else draft.topicWindow = timeWindow
+        const active = zhihuActiveTopic(draft)
+        if (active === undefined) return
+        draft.topics = zhihuTopics(draft).map((tab) => {
+          if (tab.topic !== active) return tab
+          return {
+            topic: tab.topic,
+            ...(sort === 'relevance' ? {} : { sort }),
+            ...(timeWindow === undefined ? {} : { timeWindow }),
+            lane: tab.lane,
+          }
+        })
+      },
+      topicLoaded: (draft, topic, lane) => {
+        const tabs = zhihuTopics(draft)
+        const current = tabs.find(tab => tab.topic === topic)?.lane ?? emptyLane()
+        draft.moves = { ...draft.moves, topic: rankLane(current.rows, lane.rows) }
+        draft.topics = tabs.map(tab => (tab.topic === topic ? { ...tab, lane } : tab))
+      },
+      topicAppended: (draft, topic, lane) => {
+        draft.topics = zhihuTopics(draft).map((tab) => {
+          if (tab.topic !== topic) return tab
+          return { ...tab, lane: { rows: [...tab.lane.rows, ...lane.rows], cursor: lane.cursor } }
+        })
       },
       searchOpened: (draft, query) => {
         const trimmed = query.trim()
@@ -510,6 +670,11 @@ export function createZhihuPageStore(): ZhihuPageStore {
       adopted: (draft, state) => {
         draft.tab = state.tab
         draft.topic = state.topic
+        // Only a keyword this machine watches can be the one on screen; another machine's keyword
+        // stays in the input until the reader submits it.
+        if (draft.topics !== undefined && draft.topics.some(tab => tab.topic === state.topic)) {
+          draft.activeTopic = state.topic
+        }
         draft.density = state.density
         draft.scrollTop = state.scrollTop
         draft.discussions = adoptedDiscussions(state.discussions)

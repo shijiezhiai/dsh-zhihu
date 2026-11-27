@@ -68,6 +68,8 @@ export declare const en: {
     'page.searchAction': string;
     'page.searchTabs': string;
     'page.closeSearch': string;
+    'page.topicTabs': string;
+    'page.closeTopic': string;
     'page.loadMore': string;
     'page.loadingMore': string;
     'page.end': string;

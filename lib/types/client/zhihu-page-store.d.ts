@@ -30,6 +30,19 @@ export interface ZhihuSearchTab {
 }
 /** How many searches the page keeps, so a long reading session does not grow the stored state. */
 export declare const ZHIHU_SEARCH_TABS = 8;
+/** One keyword the page watches, with the rows that answered it and the order they were read in. */
+export interface ZhihuTopicTab {
+    /** The keyword that produced the rows, which also names the tab. */
+    readonly topic: string;
+    /** The order its rows were listed in; absent keeps Zhihu's own relevance order. */
+    readonly sort?: ZhihuFeedSort;
+    /** How far back the read reached; absent keeps entries of every age. */
+    readonly timeWindow?: ZhihuFeedTimeWindow;
+    /** The rows as that read left them. */
+    readonly lane: ZhihuPageLane;
+}
+/** How many keywords the page keeps, so a long watching session does not grow the stored state. */
+export declare const ZHIHU_TOPIC_TABS = 8;
 /** The row the page shows on its own, with how far into its body the reader got. */
 export interface ZhihuPageReading {
     /** The row the reader opened. */
@@ -79,19 +92,31 @@ export interface ZhihuPageState {
     /** The search text the input shows. */
     query: string;
     /**
-     * The keyword the topic lane reads, as its input shows it.
+     * The keyword the topic input shows.
      * A state persisted before topic lanes existed restores without the field, so readers default it.
      */
     topic?: string;
     /**
-     * Order the topic lane lists its rows in.
-     * A state persisted before the topic lane could be ordered restores without the field, so readers
-     * default it to Zhihu's relevance order.
+     * The keyword whose rows are on screen; absent when the reader submitted none.
+     * A state persisted before topic tabs existed restores without the field, so readers go through
+     * {@link zhihuTopics}.
+     */
+    activeTopic?: string;
+    /**
+     * The keywords the page watches, oldest first, so a second keyword adds a tab instead of
+     * replacing the rows of the first.
+     * A state persisted before topic tabs existed restores without the field, so readers go through
+     * {@link zhihuTopics}.
+     */
+    topics?: readonly ZhihuTopicTab[];
+    /**
+     * Order the one topic lane of a state persisted before topic tabs existed listed its rows in.
+     * Read it through {@link zhihuTopics}, which folds it into its own tab.
      */
     topicSort?: ZhihuFeedSort;
     /**
-     * How far back the topic lane reaches; absent keeps entries of every age.
-     * A state persisted before the topic lane could be windowed restores without the field.
+     * How far back that lane reached; absent keeps entries of every age.
+     * Read it through {@link zhihuTopics}, which folds it into its own tab.
      */
     topicWindow?: ZhihuFeedTimeWindow;
     /**
@@ -166,12 +191,44 @@ export type ZhihuPageActions = {
      */
     topicTyped(draft: ZhihuPageState, topic: string): void;
     /**
-     * Record the order and the time window the reader picked for the topic lane.
+     * Open a keyword tab, or the one a repeated keyword already named, and show it.
+     * @param draft - the current state.
+     * @param topic - the keyword the reader submitted.
+     */
+    topicOpened(draft: ZhihuPageState, topic: string): void;
+    /**
+     * Show one keyword tab the reader already has.
+     * @param draft - the current state.
+     * @param topic - the keyword to show.
+     */
+    topicShown(draft: ZhihuPageState, topic: string): void;
+    /**
+     * Close one keyword tab, moving to a neighbour when the closed one was on screen.
+     * @param draft - the current state.
+     * @param topic - the keyword to stop watching.
+     */
+    topicClosed(draft: ZhihuPageState, topic: string): void;
+    /**
+     * Record the order and the time window the reader picked for the keyword on screen.
      * @param draft - the current state.
      * @param sort - the order its rows are listed in.
      * @param timeWindow - how far back the lane reaches; undefined keeps every age.
      */
     topicOrdered(draft: ZhihuPageState, sort: ZhihuFeedSort, timeWindow: ZhihuFeedTimeWindow | undefined): void;
+    /**
+     * Replace one keyword tab's rows with a first page.
+     * @param draft - the current state.
+     * @param topic - the keyword that answered.
+     * @param lane - the rows and continuation of that page.
+     */
+    topicLoaded(draft: ZhihuPageState, topic: string, lane: ZhihuPageLane): void;
+    /**
+     * Extend one keyword tab with a continuation page.
+     * @param draft - the current state.
+     * @param topic - the keyword that answered.
+     * @param lane - the rows of the continuation and the token that follows them.
+     */
+    topicAppended(draft: ZhihuPageState, topic: string, lane: ZhihuPageLane): void;
     /**
      * Open a search tab, or the one a repeated query already named, and show it.
      * @param draft - the current state.
@@ -298,6 +355,28 @@ export declare function zhihuSearchTabs(searches: readonly ZhihuSearchTab[] | un
  * @returns the tabs, oldest first, folding a state persisted before tabs existed into one.
  */
 export declare function zhihuSearches(state: ZhihuPageState): readonly ZhihuSearchTab[];
+/**
+ * Read the keywords a stored page keeps from the fields that carry them.
+ * @param topics - the tabs a state persisted with topic tabs carries.
+ * @param topic - the keyword of a state persisted before tabs existed.
+ * @param sort - the order that lane was read in.
+ * @param timeWindow - how far back that lane reached.
+ * @param lane - the rows that lane held.
+ * @returns the tabs, oldest first; a keyword nobody typed keeps no tab at all.
+ */
+export declare function zhihuTopicTabs(topics: readonly ZhihuTopicTab[] | undefined, topic: string | undefined, sort: ZhihuFeedSort | undefined, timeWindow: ZhihuFeedTimeWindow | undefined, lane: ZhihuPageLane | undefined): readonly ZhihuTopicTab[];
+/**
+ * Read the keywords one page state keeps.
+ * @param state - the page state.
+ * @returns the tabs, oldest first, folding a state persisted before tabs existed into one.
+ */
+export declare function zhihuTopics(state: ZhihuPageState): readonly ZhihuTopicTab[];
+/**
+ * Name the keyword whose rows are on screen.
+ * @param state - the page state.
+ * @returns that keyword, or undefined when nothing is watched yet.
+ */
+export declare function zhihuActiveTopic(state: ZhihuPageState): string | undefined;
 /**
  * Declare the page store, persisted so a reopened page keeps its lane, its rows and its offset.
  * @returns a fresh store handle for the `main` registration.

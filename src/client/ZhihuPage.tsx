@@ -41,7 +41,7 @@ import {
   type ZhihuQuoteSource,
 } from './zhihu-quote.ts'
 import { ZhihuQuoteBox } from './ZhihuQuote.tsx'
-import type { ZhihuFeedLane, ZhihuPageFace, ZhihuPageOutcome } from './zhihu-page-face.ts'
+import type { ZhihuPageFace, ZhihuPageOutcome } from './zhihu-page-face.ts'
 import {
   readSyncMarker,
   SYNC_PUSH_DELAY,
@@ -57,11 +57,13 @@ import {
   zhihuDiscussionSession,
   zhihuLane,
   zhihuSearchTabs,
+  zhihuTopicTabs,
   type ZhihuFeedTab,
   type ZhihuPageLane,
   type ZhihuPageStore,
   type ZhihuPageTab,
   type ZhihuSearchTab,
+  type ZhihuTopicTab,
 } from './zhihu-page-store.ts'
 import { ZhihuOpenedContent, ZhihuRowList, type ZhihuOpenedRow, type ZhihuTranslate } from './ZhihuContent.tsx'
 import { ZhihuThreads, type ZhihuThread, type ZhihuThreadArchive } from './ZhihuThreads.tsx'
@@ -172,6 +174,15 @@ type FeedPage = FeedLane | {
   readonly failure: RemoteFailure
 }
 
+/** What the page reads from any feed lane it shows: its page and the two requests every lane offers. */
+interface LaneHandle {
+  readonly page: FeedPage
+  readonly appending: boolean
+  readonly restored: boolean
+  readonly reload: () => void
+  readonly loadMore: () => void
+}
+
 /** One search lane's state. */
 type SearchPage =
   | FeedLane
@@ -216,11 +227,10 @@ function stallLine(seat: ZhihuDiscussionSeat, t: ZhihuTranslate): string {
  * @param active - whether this lane is the one on screen; an inactive lane stays untouched.
  * @param useStore - the page store's read seat.
  * @param actions - the page store's write seat.
- * @param lane - what a `topic` lane reads; absent for every other lane.
  * @returns the lane's page, whether a continuation is in flight, whether the lane opened with stored rows, and the two requests.
  */
 function useFeedLane(
-  face: ZhihuPageFace, kind: FeedTab, active: boolean, useStore: PageSelector, actions: PageActions, lane?: ZhihuFeedLane,
+  face: ZhihuPageFace, kind: FeedTab, active: boolean, useStore: PageSelector, actions: PageActions,
 ): {
   readonly page: FeedPage
   readonly appending: boolean
@@ -242,29 +252,14 @@ function useFeedLane(
   /** A lane that opened with stored rows asks for nothing until the reader scrolls or refreshes. */
   const restored = rows.length > 0 && !asked.current
 
-  /** The keyword this lane last asked for, so a new one is read once and an unchanged one is not. */
-  const wantedTopic = useRef<string | undefined>(undefined)
-  /** The order this lane last asked for, so a changed one is read again. */
-  const wantedOrder = useRef<string | undefined>(undefined)
-
   const request = useCallback((continuation?: string) => {
-    const keyword = kind === 'topic' ? (lane?.topic ?? '').trim() : undefined
-    // A topic lane with no keyword has nothing to read and asks for nothing.
-    if (keyword === '') {
-      setPhase({ status: 'idle' })
-      return
-    }
-    wantedTopic.current = keyword
     const current = generation.current + 1
     generation.current = current
     inFlight.current = true
     asked.current = true
     if (continuation === undefined) setPhase({ status: 'loading' })
     else setAppending(true)
-    const answer = kind === 'topic' && keyword !== undefined
-      ? face.feed(kind, continuation, { ...lane, topic: keyword })
-      : face.feed(kind, continuation)
-    void answer.then((result) => {
+    void face.feed(kind, continuation).then((result) => {
       inFlight.current = false
       if (current !== generation.current) return
       setAppending(false)
@@ -280,33 +275,18 @@ function useFeedLane(
       else actions.appended(kind, { rows: result.value.rows, cursor: next })
       setPhase({ status: 'ready' })
     })
-  }, [actions, face, kind, lane])
+  }, [actions, face, kind])
 
   useEffect(() => {
-    // A topic lane waits for the keyword the reader submits; a lane that names its own feed reads on activation.
-    if (active && phase.status === 'idle' && kind !== 'topic') request()
-  }, [active, kind, phase.status, request])
-
-  useEffect(() => {
-    if (kind !== 'topic') return
-    // The order is read from the moment the reader changes it, and the first render only records it,
-    // so a lane that opened with stored rows still asks for nothing on its own.
-    const order = `${lane?.sort ?? ''}|${lane?.timeWindow ?? ''}`
-    const first = wantedOrder.current === undefined
-    const changed = wantedOrder.current !== order
-    wantedOrder.current = order
-    if (first || !changed || !active) return
-    request()
-  }, [active, kind, lane?.sort, lane?.timeWindow, request])
-
+    // A lane reads when the reader opens it; one that opened with stored rows still asks for nothing.
+    if (active && phase.status === 'idle') request()
+  }, [active, phase.status, request])
 
   const reload = useCallback(() => { request() }, [request])
   const loadMore = useCallback(() => {
     if (inFlight.current || phase.status !== 'ready' || cursor === '' || appending) return
-    // A continuation belongs to the keyword the rows were read for, not to the one being typed.
-    if (kind === 'topic' && (lane?.topic ?? '').trim() !== wantedTopic.current) return
     request(cursor)
-  }, [appending, cursor, kind, lane?.topic, phase.status, request])
+  }, [appending, cursor, phase.status, request])
 
   const page = useMemo<FeedPage>(() => {
     if (phase.status === 'failed') return { status: 'failed', rows: [], failure: phase.failure }
@@ -440,6 +420,153 @@ function useSearchLanes(face: ZhihuPageFace, useStore: PageSelector, actions: Pa
   return { tabs, active, page, appending, restored, run, retry, loadMore, show, close }
 }
 
+/** The order and window one keyword tab was read in. */
+interface TopicOrder {
+  readonly sort: ZhihuFeedSort | undefined
+  readonly timeWindow: ZhihuFeedTimeWindow | undefined
+}
+
+/**
+ * Run the keyword tabs, one per watched keyword, over the pages the store keeps.
+ *
+ * A submitted keyword keeps its own tab with its own order and window, so watching a second keyword
+ * leaves the rows of the first where they were. A tab's phase is local, so a reopened page shows the
+ * stored rows and asks for nothing until the reader pages, reorders or retries that tab.
+ * @param face - the page's fetching face.
+ * @param active - whether the keyword tabs are on screen; an inactive set stays untouched.
+ * @param useStore - the page store's read seat.
+ * @param actions - the page store's write seat.
+ * @returns the tabs, the one on screen with its page and order, and the requests that drive them.
+ */
+function useTopicLane(face: ZhihuPageFace, active: boolean, useStore: PageSelector, actions: PageActions): {
+  readonly tabs: readonly ZhihuTopicTab[]
+  readonly active: ZhihuTopicTab | undefined
+  readonly page: FeedPage
+  readonly appending: boolean
+  readonly restored: boolean
+  readonly loadMore: () => void
+  readonly reload: () => void
+  readonly run: (topic: string) => void
+  readonly retry: () => void
+  readonly show: (topic: string) => void
+  readonly close: (topic: string) => void
+  readonly order: (sort: ZhihuFeedSort, timeWindow: ZhihuFeedTimeWindow | undefined) => void
+} {
+  const topics = useStore(state => state.topics)
+  const typed = useStore(state => state.topic)
+  const legacySort = useStore(state => state.topicSort)
+  const legacyWindow = useStore(state => state.topicWindow)
+  const legacyLane = useStore(state => state.feeds.topic)
+  const named = useStore(state => state.activeTopic)
+  const tabs = useMemo(
+    () => zhihuTopicTabs(topics, typed, legacySort, legacyWindow, legacyLane),
+    [legacyLane, legacySort, legacyWindow, topics, typed],
+  )
+  // A state persisted before tabs existed names none, so its single keyword is the one on screen.
+  const welcomed = named ?? (topics === undefined ? (typed ?? '').trim() : undefined)
+  const current = useMemo(() => tabs.find(tab => tab.topic === welcomed), [tabs, welcomed])
+  const topic = current?.topic
+  const lane = current?.lane ?? NO_ROWS
+  const sort = current?.sort
+  const timeWindow = current?.timeWindow
+  const [phases, setPhases] = useState<Record<string, LanePhase>>({})
+  const [appendingIn, setAppendingIn] = useState<readonly string[]>([])
+  /** The keywords this page has asked for, so a tab restored with rows keeps them. */
+  const asked = useRef(new Set<string>())
+  /** The keywords whose request is unanswered, so a top-up cannot ask twice for one page. */
+  const inFlight = useRef(new Set<string>())
+  /** The latest request of each keyword, so an answer for an abandoned tab writes nothing. */
+  const generations = useRef(new Map<string, number>())
+  const phase = topic === undefined ? IDLE_PHASE : phases[topic] ?? (lane.rows.length > 0 ? READY_PHASE : IDLE_PHASE)
+  const appending = topic !== undefined && appendingIn.includes(topic)
+  const restored = topic !== undefined && lane.rows.length > 0 && !asked.current.has(topic)
+
+  const request = useCallback((wanted: string, order: TopicOrder, continuation?: string) => {
+    const generation = (generations.current.get(wanted) ?? 0) + 1
+    generations.current.set(wanted, generation)
+    inFlight.current.add(wanted)
+    asked.current.add(wanted)
+    if (continuation === undefined) setPhases(kept => ({ ...kept, [wanted]: { status: 'loading' } }))
+    else setAppendingIn(kept => [...kept, wanted])
+    const laneRequest = {
+      topic: wanted,
+      ...(order.sort === undefined || order.sort === 'relevance' ? {} : { sort: order.sort }),
+      ...(order.timeWindow === undefined ? {} : { timeWindow: order.timeWindow }),
+    }
+    void face.feed('topic', continuation, laneRequest).then((result) => {
+      inFlight.current.delete(wanted)
+      if (generation !== generations.current.get(wanted)) return
+      setAppendingIn(kept => kept.filter(entry => entry !== wanted))
+      if (!result.ok) {
+        setPhases(kept => ({
+          ...kept,
+          [wanted]: continuation === undefined
+            ? { status: 'failed', failure: result.failure }
+            : { status: 'ready', failure: result.failure },
+        }))
+        return
+      }
+      // A page that carries no rows ends the tab, so a repeated cursor cannot page forever.
+      const next = result.value.rows.length === 0 ? '' : result.value.cursor ?? ''
+      const slice = { rows: result.value.rows, cursor: next }
+      if (continuation === undefined) actions.topicLoaded(wanted, slice)
+      else actions.topicAppended(wanted, slice)
+      setPhases(kept => ({ ...kept, [wanted]: { status: 'ready' } }))
+    })
+  }, [actions, face])
+
+  const run = useCallback((text: string) => {
+    const trimmed = text.trim()
+    if (trimmed === '') return
+    actions.topicOpened(trimmed)
+    // A keyword the reader already watches keeps the order its tab holds; a new one starts fresh.
+    const known = tabs.find(tab => tab.topic === trimmed)
+    request(trimmed, { sort: known?.sort, timeWindow: known?.timeWindow })
+  }, [actions, request, tabs])
+
+  const retry = useCallback(() => {
+    if (topic === undefined) return
+    request(topic, { sort, timeWindow })
+  }, [request, sort, timeWindow, topic])
+
+  const loadMore = useCallback(() => {
+    if (topic === undefined || inFlight.current.has(topic)) return
+    if (phase.status !== 'ready' || lane.cursor === '' || appending) return
+    request(topic, { sort, timeWindow }, lane.cursor)
+  }, [appending, lane.cursor, phase.status, request, sort, timeWindow, topic])
+
+  /** The tab and order this hook last saw, so a changed order is read once and a switched tab not at all. */
+  const wantedOrder = useRef<{ readonly topic: string; readonly order: string } | undefined>(undefined)
+  useEffect(() => {
+    if (current === undefined || !active) return
+    const order = `${current.sort ?? ''}|${current.timeWindow ?? ''}`
+    const previous = wantedOrder.current
+    wantedOrder.current = { topic: current.topic, order }
+    // The first render, and a tab the reader switched to, only record the order its rows were read in.
+    if (previous === undefined || previous.topic !== current.topic || previous.order === order) return
+    request(current.topic, { sort: current.sort, timeWindow: current.timeWindow })
+  }, [active, current, request])
+
+  const page = useMemo<FeedPage>(() => {
+    if (phase.status === 'failed') return { status: 'failed', rows: lane.rows, failure: phase.failure }
+    if (phase.status !== 'ready') return { status: phase.status, rows: [] }
+    return {
+      status: 'ready',
+      rows: lane.rows,
+      ...(lane.cursor === '' ? {} : { cursor: lane.cursor }),
+      ...(phase.failure === undefined ? {} : { failure: phase.failure }),
+    }
+  }, [lane.cursor, lane.rows, phase])
+
+  const order = useCallback((next: ZhihuFeedSort, window: ZhihuFeedTimeWindow | undefined) => {
+    actions.topicOrdered(next, window)
+  }, [actions])
+  const show = useCallback((wanted: string) => { actions.topicShown(wanted) }, [actions])
+  const close = useCallback((wanted: string) => { actions.topicClosed(wanted) }, [actions])
+
+  return { tabs, active: current, page, appending, restored, loadMore, reload: retry, run, retry, show, close, order }
+}
+
 /**
  * The key hint a menu row shows, if its action has a binding.
  * @param keys - the effective key labels of the row's command.
@@ -548,17 +675,8 @@ export function ZhihuPage(
 ): ReactNode {
   const tab = useStore(state => state.tab)
   const query = useStore(state => state.query)
+  /** The keyword the reader is typing; submitting it opens or shows that keyword's tab. */
   const topic = useStore(state => state.topic) ?? ''
-  // A state persisted before the topic lane could be ordered restores without these, so the lane
-  // starts on Zhihu's own relevance order and every age.
-  const topicSort = useStore(state => state.topicSort) ?? 'relevance'
-  const topicWindow = useStore(state => state.topicWindow)
-  /** What the topic lane asks for: the keyword in the box and the order the reader picked. */
-  const topicLane = useMemo<ZhihuFeedLane>(() => ({
-    topic,
-    ...(topicSort === 'relevance' ? {} : { sort: topicSort }),
-    ...(topicWindow === undefined ? {} : { timeWindow: topicWindow }),
-  }), [topic, topicSort, topicWindow])
   const scrollTop = useStore(state => state.scrollTop)
   const savedReading = useStore(state => state.reading)
   /** The fields this page shares with the reader's other machines. */
@@ -615,9 +733,9 @@ export function ZhihuPage(
   const recommended = useFeedLane(face, 'recommend', tab === 'recommend' && opened === null, useStore, actions)
   const hot = useFeedLane(face, 'hot', tab === 'hot' && opened === null, useStore, actions)
   const follow = useFeedLane(face, 'follow', tab === 'follow' && opened === null, useStore, actions)
-  const watched = useFeedLane(face, 'topic', tab === 'topic' && opened === null, useStore, actions, topicLane)
+  const watched = useTopicLane(face, tab === 'topic' && opened === null, useStore, actions)
   const search = useSearchLanes(face, useStore, actions)
-  const lanes: Readonly<Record<FeedTab, ReturnType<typeof useFeedLane>>> = {
+  const lanes: Readonly<Record<FeedTab, LaneHandle>> = {
     recommend: recommended,
     hot,
     follow,
@@ -626,6 +744,10 @@ export function ZhihuPage(
   const lane = tab === 'search' ? search : lanes[tab]
   /** Reloads the lane on screen; the search lane re-runs its form instead. */
   const refresh = tab === 'search' ? undefined : lanes[tab].reload
+  // The keyword tab on screen names the order it was read in; before the first submit the menus
+  // show what a fresh keyword starts with.
+  const topicSort = watched.active?.sort ?? 'relevance'
+  const topicWindow = watched.active?.timeWindow
   const scroller = useRef<HTMLDivElement | null>(null)
   /** The list's live offset; the store hears it once the reader pauses, not once per event. */
   const offset = useRef(scrollTop)
@@ -1314,13 +1436,41 @@ export function ZhihuPage(
         </Button>
         <Button variant="ghost" size="sm" onClick={() => { setLibrary(true) }}>{t('threads.title')}</Button>
       </div>
+      {tab === 'topic' && watched.tabs.length > 0 && (
+        <div className={css.searchTabs} role="tablist" aria-label={t('page.topicTabs')}>
+          {watched.tabs.map((item) => {
+            const showing = item.topic === watched.active?.topic
+            return (
+              <span key={item.topic} className={css.searchTab} data-active={showing ? 'true' : 'false'}>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={showing}
+                  className={css.searchTabName}
+                  onClick={() => { watched.show(item.topic) }}
+                >
+                  {item.topic}
+                </button>
+                <button
+                  type="button"
+                  className={css.searchTabClose}
+                  aria-label={t('page.closeTopic', { topic: item.topic })}
+                  onClick={() => { watched.close(item.topic) }}
+                >
+                  ×
+                </button>
+              </span>
+            )
+          })}
+        </div>
+      )}
       {tab === 'topic' && (
         <>
           <form
             className={css.searchBar}
             onSubmit={(event) => {
               event.preventDefault()
-              watched.reload()
+              watched.run(topic)
             }}
           >
             <Input
@@ -1340,7 +1490,7 @@ export function ZhihuPage(
               onSelect={(id) => {
                 setOrderMenu(undefined)
                 const picked = readTopicSort(id)
-                if (picked !== undefined) actions.topicOrdered(picked, topicWindow)
+                if (picked !== undefined) watched.order(picked, topicWindow)
               }}
               portal
               anchor={(
@@ -1366,7 +1516,7 @@ export function ZhihuPage(
               selectedId={topicWindow ?? ANY_WINDOW}
               onSelect={(id) => {
                 setOrderMenu(undefined)
-                actions.topicOrdered(topicSort, readTopicWindow(id))
+                watched.order(topicSort, readTopicWindow(id))
               }}
               portal
               anchor={(

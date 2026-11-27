@@ -2,6 +2,12 @@
 
 Every tag publishes the prebuilt tarball the plugin-market entry installs, at `https://github.com/shijiezhiai/dsh-zhihu/releases/download/v<version>/dsh-zhihu.tgz`; the asset name stays `dsh-zhihu.tgz`, so a version is identified by its URL.
 
+## 1.20.0
+
+### Added
+
+- A watched keyword keeps its own tab. Submitting a second keyword replaces the rows of the first no more than a second search does: each keyword holds its own rows, its own order and its own time window, a repeated keyword shows the tab it already has, switching back shows the rows that tab read without asking Zhihu again, and eight tabs are kept with the ninth dropping the oldest.
+
 ## 1.19.1
 
 ### Changed
