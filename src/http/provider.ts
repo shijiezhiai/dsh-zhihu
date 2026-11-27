@@ -205,13 +205,19 @@ export class ZhihuHttpProvider implements ZhihuProvider {
    * List a content's root comments. They are a smell test on the content rather than evidence about
    * it, so the first answers are the ones worth reading. Zhihu ranks a page at ten comments at
    * most, so a larger limit is filled from the continuation URLs it hands out; each page asks only
-   * for what is still missing, which keeps every comment of a page it reads.
-   * @param request - the content kind and id, and an optional comment limit.
+   * for what is still missing, which keeps every comment of a page it reads. An unusable cursor
+   * reads from the first page: the token is a tool's output, and following a page address this
+   * provider did not issue would either duplicate or skip comments.
+   * @param request - the content kind and id, an optional comment limit, and an optional cursor.
    * @param signal - cancellation of the call.
-   * @returns the comments read, and the content's root-comment count when the payload carries one.
+   * @returns the comments read, the content's root-comment count when the payload carries one, and
+   * the cursor of the page that follows.
    */
   async comments(request: ZhihuCommentsRequest, signal?: AbortSignal): Promise<ZhihuCommentsPage> {
-    return await this.walkComments(commentUrl(request.kind, request.id, request.limit ?? this.options.pageSize), request.limit, signal)
+    const limit = request.limit ?? this.options.pageSize
+    const first = resumeCommentUrl(request.cursor, request.kind, limit)
+      ?? commentUrl(request.kind, request.id, limit)
+    return await this.walkComments(first, request.limit, signal)
   }
 
   /**
@@ -222,7 +228,10 @@ export class ZhihuHttpProvider implements ZhihuProvider {
    * @returns one slice of the replies with the thread size when the payload names it.
    */
   async replies(request: ZhihuRepliesRequest, signal?: AbortSignal): Promise<ZhihuCommentsPage> {
-    return await this.walkComments(childCommentUrl(request.commentId, request.limit ?? this.options.pageSize), request.limit, signal)
+    const page = await this.walkComments(
+      childCommentUrl(request.commentId, request.limit ?? this.options.pageSize), request.limit, signal,
+    )
+    return { items: page.items, ...(page.total === undefined ? {} : { total: page.total }) }
   }
 
   /**
@@ -230,21 +239,29 @@ export class ZhihuHttpProvider implements ZhihuProvider {
    * @param first - absolute URL of the first page to fetch.
    * @param limit - comments wanted; omitted reads the provider's page size.
    * @param signal - cancellation of the call.
-   * @returns the comments read and the thread size when the payload names it.
+   * @returns the comments read, the thread size when the payload names it, and the cursor of the
+   * page after the last one read.
    */
   private async walkComments(first: string, limit: number | undefined, signal: AbortSignal | undefined): Promise<ZhihuCommentsPage> {
     const wanted = limit ?? this.options.pageSize
     const items: ZhihuComment[] = []
     let next: string | undefined = first
     let total: number | undefined
+    // The page the endpoint named, kept whole: a cursor names the start of that page even when the
+    // limit was met before this call read any of it.
+    let cursor: string | undefined
     for (let pages = 0; next !== undefined && pages < this.options.commentPages && items.length < wanted; pages += 1) {
       const body = await this.options.transport.get<ZhihuListBody<ZhihuCommentRow>>(next, signal)
       items.push(...(body.data ?? []).flatMap(row => commentItem(row)))
       total = body.paging?.totals ?? total
-      next = nextPageUrl(body.paging)
-      if (next !== undefined) next = withLimit(next, wanted - items.length)
+      cursor = nextPageUrl(body.paging)
+      next = cursor === undefined ? undefined : withLimit(cursor, wanted - items.length)
     }
-    return { items, ...(total === undefined ? {} : { total }) }
+    return {
+      items,
+      ...(total === undefined ? {} : { total }),
+      ...(cursor === undefined ? {} : { cursor }),
+    }
   }
 
   /**
@@ -454,6 +471,21 @@ function commentUrl(kind: ZhihuContentKind, id: string, limit: number): string {
  */
 function childCommentUrl(commentId: string, limit: number): string {
   return `${API_ROOT}/api/v4/comment_v5/comment/${commentId}/child_comment?order_by=score&limit=${limit}`
+}
+
+/**
+ * Turn a comments cursor back into the page address it names.
+ * @param cursor - the token an earlier call returned, if any.
+ * @param kind - the content kind that call listed, which the page must belong to.
+ * @param limit - comments wanted from that page.
+ * @returns the URL asking for them, or `undefined` when the token names another site, another
+ * content kind, or nothing at all.
+ */
+function resumeCommentUrl(cursor: string | undefined, kind: ZhihuContentKind, limit: number): string | undefined {
+  if (cursor === undefined) return undefined
+  const url = zhihuUrl(cursor)
+  if (url === undefined || !url.startsWith(`${API_ROOT}/api/v4/comment_v5/${COMMENT_KIND[kind]}/`)) return undefined
+  return withLimit(url, limit)
 }
 
 /**

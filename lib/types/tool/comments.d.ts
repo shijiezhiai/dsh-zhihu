@@ -40,8 +40,10 @@ export interface ZhihuCommentsValue {
     readonly total?: number;
     /** Returned comments, in the order the endpoint ranked them. */
     readonly items: readonly ZhihuCommentItemValue[];
-    /** True when the call reached the requested limit, so more comments may exist. */
+    /** True when the thread goes on past this call, so more comments exist. */
     readonly truncated: boolean;
+    /** Continuation token for the page after this one; absent when the thread ends here. */
+    readonly cursor?: string;
 }
 /** One comment as the replayable presentation meta carries it. */
 export type ZhihuCommentItemMeta = {

@@ -78,10 +78,13 @@ export declare class ZhihuHttpProvider implements ZhihuProvider {
      * List a content's root comments. They are a smell test on the content rather than evidence about
      * it, so the first answers are the ones worth reading. Zhihu ranks a page at ten comments at
      * most, so a larger limit is filled from the continuation URLs it hands out; each page asks only
-     * for what is still missing, which keeps every comment of a page it reads.
-     * @param request - the content kind and id, and an optional comment limit.
+     * for what is still missing, which keeps every comment of a page it reads. An unusable cursor
+     * reads from the first page: the token is a tool's output, and following a page address this
+     * provider did not issue would either duplicate or skip comments.
+     * @param request - the content kind and id, an optional comment limit, and an optional cursor.
      * @param signal - cancellation of the call.
-     * @returns the comments read, and the content's root-comment count when the payload carries one.
+     * @returns the comments read, the content's root-comment count when the payload carries one, and
+     * the cursor of the page that follows.
      */
     comments(request: ZhihuCommentsRequest, signal?: AbortSignal): Promise<ZhihuCommentsPage>;
     /**
@@ -97,7 +100,8 @@ export declare class ZhihuHttpProvider implements ZhihuProvider {
      * @param first - absolute URL of the first page to fetch.
      * @param limit - comments wanted; omitted reads the provider's page size.
      * @param signal - cancellation of the call.
-     * @returns the comments read and the thread size when the payload names it.
+     * @returns the comments read, the thread size when the payload names it, and the cursor of the
+     * page after the last one read.
      */
     private walkComments;
     /**

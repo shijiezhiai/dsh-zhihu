@@ -177,11 +177,14 @@ export interface ZhihuCommentsRequest {
     /** Lossless decimal content id. */
     readonly id: string;
     /**
-     * Upper bound on returned comments; the seam enforces it. Omitted = provider default. A provider
-     * answers one slice of the thread, because the endpoint's continuation token cannot be resumed
-     * without dropping the comments between the two pages.
+     * Upper bound on returned comments; the seam enforces it. Omitted = provider default.
      */
     readonly limit?: number;
+    /**
+     * Continuation token from an earlier call, whose comments are then passed by. Omitted reads the
+     * first page; a token the provider did not issue reads as one too.
+     */
+    readonly cursor?: string;
 }
 /** One root comment on a piece of Zhihu content. */
 export interface ZhihuComment {
@@ -207,6 +210,11 @@ export interface ZhihuCommentsPage {
     readonly items: readonly ZhihuComment[];
     /** Number of root comments on the content; absent when the payload carried none. */
     readonly total?: number;
+    /**
+     * Where to read on; absent when nothing follows. The token names the page after the one this call
+     * read, so a call that stopped partway through a page leaves the rest of that page behind.
+     */
+    readonly cursor?: string;
 }
 /**
  * One replies request. Zhihu keeps comment threads two levels deep: every answer to a root comment,
@@ -216,8 +224,7 @@ export interface ZhihuRepliesRequest {
     /** Lossless decimal id of the root comment whose replies are wanted. */
     readonly commentId: string;
     /**
-     * Upper bound on returned replies; the seam enforces it. Omitted = provider default, and the
-     * same one-slice rule as {@link ZhihuCommentsRequest.limit} applies.
+     * Upper bound on returned replies; the seam enforces it. Omitted = provider default.
      */
     readonly limit?: number;
 }

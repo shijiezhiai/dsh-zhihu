@@ -103,9 +103,10 @@ export declare class ZhihuService extends Service {
     /**
      * List one slice of a content's root comments through the selected provider, capped to
      * `request.limit`.
-     * @param request - the content kind and id, and an optional comment limit.
+     * @param request - the content kind and id, an optional comment limit, and an optional cursor.
      * @param signal - cancellation of the call.
-     * @returns the comments read, truncated when the provider over-returns.
+     * @returns the comments read, truncated when the provider over-returns, and the cursor of the
+     * page that follows.
      */
     comments(request: ZhihuCommentsRequest, signal?: AbortSignal): Promise<ZhihuCommentsPage>;
     /**

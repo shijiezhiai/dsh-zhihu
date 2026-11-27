@@ -46,8 +46,10 @@ export interface ZhihuCommentsValue {
   readonly total?: number
   /** Returned comments, in the order the endpoint ranked them. */
   readonly items: readonly ZhihuCommentItemValue[]
-  /** True when the call reached the requested limit, so more comments may exist. */
+  /** True when the thread goes on past this call, so more comments exist. */
   readonly truncated: boolean
+  /** Continuation token for the page after this one; absent when the thread ends here. */
+  readonly cursor?: string
 }
 
 /** One comment as the replayable presentation meta carries it. */
@@ -72,7 +74,7 @@ export type ZhihuCommentsMeta = {
 /** Content kinds `zhihu_comments` accepts, in the order its schema lists them. */
 const COMMENT_KINDS: readonly ZhihuContentKind[] = ['question', 'answer', 'article']
 
-const COMMENTS_DESCRIPTION = 'List the root comments of one Zhihu question, answer, or article, ordered by Zhihu\'s own hotness score, to judge whether the content is worth trusting. Pass the kind and the id that zhihu_feed, zhihu_search, or zhihu_read returned, exactly as it was returned: Zhihu ids are decimal strings of varying length, and a long one loses precision as a number. Comments record what other readers think; they are not evidence about the facts in the content, and upvotes do not make a claim true. Other sites need web_search, and web_fetch cannot retrieve Zhihu content because Zhihu answers 403 or a risk-control challenge page. Zhihu content needs the account\'s login state. Failures name their cause: ZHIHU_LOGIN_REQUIRED means no Zhihu cookie is stored, ZHIHU_RATE_LIMITED means the calls are too frequent, and ZHIHU_BLOCKED means a verification challenge is pending. Report the cause instead of repeating the same call. The endpoint ranks and returns at most ten comments per page, so a call answers one slice of the thread: raise limit to read further.'
+const COMMENTS_DESCRIPTION = 'List the root comments of one Zhihu question, answer, or article, ordered by Zhihu\'s own hotness score, to judge whether the content is worth trusting. Pass the kind and the id that zhihu_feed, zhihu_search, or zhihu_read returned, exactly as it was returned: Zhihu ids are decimal strings of varying length, and a long one loses precision as a number. Comments record what other readers think; they are not evidence about the facts in the content, and upvotes do not make a claim true. Other sites need web_search, and web_fetch cannot retrieve Zhihu content because Zhihu answers 403 or a risk-control challenge page. Zhihu content needs the account\'s login state. Failures name their cause: ZHIHU_LOGIN_REQUIRED means no Zhihu cookie is stored, ZHIHU_RATE_LIMITED means the calls are too frequent, and ZHIHU_BLOCKED means a verification challenge is pending. Report the cause instead of repeating the same call. The endpoint ranks and returns at most ten comments per page, so a call answers one slice of the thread: an answer that a further page follows carries a cursor, and passing it back reads on from the page after this one. Raise limit instead to read more from the first page, which reads every page again. Because the cursor names a whole page, a call that asks for fewer comments than that page holds leaves the rest of it behind: ask for ten, the endpoint\'s own page size, to keep the thread unbroken.'
 
 /**
  * Project one seam comment into the canonical value, bounding its text so the value, the render
@@ -137,7 +139,12 @@ export function formatCommentsOutput(value: ZhihuCommentsValue): string {
     ? 'No comments.'
     : value.items.map(item => commentLine(item)).join('\n')
   const notes = [
-    ...(value.truncated ? [`Showing the first ${value.items.length} comments; raise limit for more.`] : []),
+    ...(value.cursor === undefined
+      ? []
+      : [`Pass cursor "${value.cursor}" to read on from the page after this one; asking for a whole page of ten leaves nothing behind.`]),
+    ...(value.truncated && value.cursor === undefined
+      ? [`Showing the first ${value.items.length} comments; raise limit for more.`]
+      : []),
     'Zhihu ranks these by its own hotness score, not by upvotes alone. Readers\' opinions are not evidence about the facts in the content.',
     'Pass the id to zhihu_read to read the content itself; a comment id cannot be read.',
   ]
@@ -209,6 +216,10 @@ export function applyZhihuCommentsTool(ctx: Context, limits: ZhihuToolLimits): v
         type: 'number',
         description: `How many comments to return, at most ${maxItems}. Omitted returns up to ${maxItems}.`,
       },
+      cursor: {
+        type: 'string',
+        description: 'Continuation token an earlier answer returned as cursor, to read on from the page after that one. Omitted reads the first page; a token this tool did not return reads as one too.',
+      },
     },
     output: {
       schema: {
@@ -237,6 +248,7 @@ export function applyZhihuCommentsTool(ctx: Context, limits: ZhihuToolLimits): v
             },
           },
           truncated: { type: 'boolean', required: true },
+          cursor: { type: 'string' },
         },
       },
       render: (_args, value) => [{ type: 'text', text: formatCommentsOutput(value) }],
@@ -250,9 +262,10 @@ export function applyZhihuCommentsTool(ctx: Context, limits: ZhihuToolLimits): v
       if (kind === undefined) throw new Error(`kind must be one of ${COMMENT_KINDS.join(', ')}`)
       const id = requireText(args.id, 'id')
       const limit = resolveLimit(args.limit, 'limit', maxItems)
+      const cursor = readString(args, 'cursor')?.trim() ?? ''
       let page: ZhihuCommentsPage
       try {
-        page = await ctx.zhihu.comments({ kind, id, limit }, exec.signal)
+        page = await ctx.zhihu.comments({ kind, id, limit, ...(cursor.length === 0 ? {} : { cursor }) }, exec.signal)
       } catch (error) {
         throw new Error(describeZhihuFailure(error), { cause: error })
       }
@@ -263,7 +276,8 @@ export function applyZhihuCommentsTool(ctx: Context, limits: ZhihuToolLimits): v
         limit,
         ...(page.total === undefined ? {} : { total: page.total }),
         items: page.items.map(comment => projectComment(comment, excerptMaxChars)),
-        truncated: page.items.length >= limit,
+        truncated: page.cursor !== undefined || page.items.length >= limit,
+        ...(page.cursor === undefined ? {} : { cursor: page.cursor }),
       }
     },
     presentCall: presentCommentsCall,

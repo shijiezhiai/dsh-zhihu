@@ -2,6 +2,12 @@
 
 Every tag publishes the prebuilt tarball the plugin-market entry installs, at `https://github.com/shijiezhiai/dsh-zhihu/releases/download/v<version>/dsh-zhihu.tgz`; the asset name stays `dsh-zhihu.tgz`, so a version is identified by its URL.
 
+## 1.18.0
+
+### Added
+
+- `zhihu_comments` hands out the cursor of the page that follows and takes it back, so a thread longer than one call's page budget is read to its end instead of ending at that budget. A cursor names a whole page: a call that asks for fewer comments than that page holds leaves the rest of it behind, which the tool description and the answer's note both say, and asking for ten keeps the thread unbroken. A cursor this tool did not issue, or one naming another content kind, reads the first page again rather than following a page address the provider never handed out.
+
 ## 1.17.0
 
 ### Added
