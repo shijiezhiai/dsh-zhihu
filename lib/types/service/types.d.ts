@@ -23,8 +23,8 @@ export interface ZhihuFeedRequest {
     /** Which feed to list. */
     readonly kind: ZhihuFeedKind;
     /**
-     * Keyword a `topic` feed lists: the entries a search for it returns, in the endpoint's own
-     * relevance order. Required for `topic`, ignored by every other feed.
+     * Keyword a `topic` feed lists: the entries a search for it returns. Required for `topic`,
+     * ignored by every other feed.
      */
     readonly topic?: string;
     /** Upper bound on returned items. Omitted = the provider's default page size. */
@@ -34,6 +34,18 @@ export interface ZhihuFeedRequest {
      * A provider that does not page its feed ignores it.
      */
     readonly cursor?: string;
+    /**
+     * Order of a `topic` feed's entries. Omitted keeps the endpoint's own relevance order, the only
+     * order it offers itself; another order is computed by the provider from several pages, so such a
+     * feed answers no continuation token. Ignored by every other feed.
+     */
+    readonly sort?: ZhihuSearchSort;
+    /**
+     * Keep only a `topic` feed's entries created within this window, measured from the moment of the
+     * call. Omitted keeps every age. Like {@link ZhihuFeedRequest.sort}, a window is answered from
+     * several pages and leaves the feed nothing to continue. Ignored by every other feed.
+     */
+    readonly timeWindow?: ZhihuSearchTimeWindow;
 }
 /**
  * One page of a feed. `cursor` is opaque to every consumer: it is handed back through

@@ -8,7 +8,7 @@
  */
 import type { ClientRemote } from '@deepseek-ai/dsh-api-gateway/client';
 import type { RemoteFailure } from '@deepseek-ai/dsh-api-remotes/client';
-import type { ZhihuClientSettings, ZhihuCommentsResult, ZhihuExportQuery, ZhihuExportResult, ZhihuFeedQuery, ZhihuFeedResult, ZhihuFeedRow, ZhihuReadItem, ZhihuSyncDocument, ZhihuSyncReadResult, ZhihuSyncSaveResult } from '@deepseek-ai/dsh-zhihu-plugin/types';
+import type { ZhihuClientSettings, ZhihuCommentsResult, ZhihuExportQuery, ZhihuExportResult, ZhihuFeedQuery, ZhihuFeedResult, ZhihuFeedRow, ZhihuFeedSort, ZhihuFeedTimeWindow, ZhihuReadItem, ZhihuSyncDocument, ZhihuSyncReadResult, ZhihuSyncSaveResult } from '@deepseek-ai/dsh-zhihu-plugin/types';
 /** Either a returned value or the Remote failure that refused it. */
 export type ZhihuPageOutcome<T> = {
     readonly ok: true;
@@ -17,16 +17,25 @@ export type ZhihuPageOutcome<T> = {
     readonly ok: false;
     readonly failure: RemoteFailure;
 };
+/** What a `topic` lane reads: its keyword and, when the reader picked one, an order and a window. */
+export interface ZhihuFeedLane {
+    /** Keyword the lane lists. */
+    readonly topic: string;
+    /** Order the rows are listed in; omitted keeps Zhihu's relevance order. */
+    readonly sort?: ZhihuFeedSort;
+    /** Keep only rows created within this window; omitted keeps every age. */
+    readonly timeWindow?: ZhihuFeedTimeWindow;
+}
 /** What the full page calls for its feeds, its search lane, and its opened rows. */
 export interface ZhihuPageFace {
     /**
      * Request one feed page.
      * @param kind - which feed to read.
      * @param cursor - continuation token from the previous page; omitted reads the first page.
-     * @param topic - keyword a `topic` feed lists; ignored by every other kind.
+     * @param lane - what a `topic` lane reads; ignored by every other kind.
      * @returns the rows and the token that continues the feed, or the refusal.
      */
-    feed(kind: ZhihuFeedQuery['kind'], cursor?: string, topic?: string): Promise<ZhihuPageOutcome<ZhihuFeedResult>>;
+    feed(kind: ZhihuFeedQuery['kind'], cursor?: string, lane?: ZhihuFeedLane): Promise<ZhihuPageOutcome<ZhihuFeedResult>>;
     /**
      * Run one search.
      * @param query - non-empty query text.

@@ -7,8 +7,8 @@ import type { ZhihuErrorCode, ZhihuFeedRequest, ZhihuReadRequest } from '../serv
 import { credentialRef } from '@deepseek-ai/dsh-credentials'
 import type {
   ZhihuClientSettings, ZhihuCommentsQuery, ZhihuCommentsResult, ZhihuExportQuery, ZhihuExportResult,
-  ZhihuFailureTarget, ZhihuFeedQuery,
-  ZhihuFeedResult, ZhihuReadItem, ZhihuReadQuery, ZhihuRemoteFailureCode, ZhihuRepliesQuery,
+  ZhihuFailureTarget, ZhihuFeedQuery, ZhihuFeedResult, ZhihuFeedSort, ZhihuFeedTimeWindow,
+  ZhihuReadItem, ZhihuReadQuery, ZhihuRemoteFailureCode, ZhihuRepliesQuery,
   ZhihuSearchQuery, ZhihuSearchResult, ZhihuSyncDocument, ZhihuSyncReadResult, ZhihuSyncSaveResult,
 } from './types.ts'
 import { fileCapture, noteName, notePath, readDocument, statePath, writeDocument, ObsidianError } from './obsidian.ts'
@@ -51,6 +51,27 @@ const FAILURE_CODES: Readonly<Record<ZhihuErrorCode, ZhihuRemoteFailureCode | un
   ZHIHU_PROVIDER_CONFIGURED_UNAVAILABLE: 'zhihu/unavailable',
   ZHIHU_PROVIDER_AMBIGUOUS: 'zhihu/unavailable',
   ZHIHU_DUPLICATE_PROVIDER: undefined,
+}
+
+/** Orders a `topic` feed accepts, in the order an entry is offered. */
+const FEED_SORTS: readonly ZhihuFeedSort[] = ['relevance', 'newest', 'top']
+
+/** Time windows a `topic` feed accepts, narrowest first. */
+const FEED_WINDOWS: readonly ZhihuFeedTimeWindow[] = ['day', 'week', 'month', 'year']
+
+/**
+ * Read one enumerable wire value, refusing anything the seam does not accept.
+ * @param allowed - the values this field accepts.
+ * @param value - value the Client sent.
+ * @param field - field name reported by the refusal.
+ * @returns the same value once it is one of `allowed`.
+ */
+function readMember<T extends string>(allowed: readonly T[], value: string, field: string): T {
+  const found = allowed.find(candidate => candidate === value)
+  if (found === undefined) {
+    throw new RemoteError('gateway/bad-request', `${field} must be one of ${allowed.join(', ')}, received ${value}`, {})
+  }
+  return found
 }
 
 /**
@@ -343,7 +364,23 @@ export default class ZhihuController extends TypertRemoteService {
     if (topic.length === 0) {
       throw new RemoteError('gateway/bad-request', 'topic must not be empty for a topic feed', {})
     }
-    return { kind: 'topic', topic, limit: capped, ...continuation }
+    const sort = request.sort === undefined
+      ? undefined
+      : readMember(FEED_SORTS, request.sort, 'sort')
+    const timeWindow = request.timeWindow === undefined
+      ? undefined
+      : readMember(FEED_WINDOWS, request.timeWindow, 'timeWindow')
+    // An ordered or windowed feed is answered from several pages into one slice, so it continues
+    // none of them: the token a Client holds belongs to the unordered feed it read before.
+    const ordered = (sort !== undefined && sort !== 'relevance') || timeWindow !== undefined
+    return {
+      kind: 'topic',
+      topic,
+      limit: capped,
+      ...(sort === undefined ? {} : { sort }),
+      ...(timeWindow === undefined ? {} : { timeWindow }),
+      ...(ordered ? {} : continuation),
+    }
   }
 
   /**

@@ -53,6 +53,16 @@ export declare const en: {
     'page.topicPlaceholder': string;
     'page.searchPlaceholder': string;
     'page.topicAction': string;
+    'page.topicSort': string;
+    'page.topicSortRelevance': string;
+    'page.topicSortNewest': string;
+    'page.topicSortTop': string;
+    'page.topicWindow': string;
+    'page.topicWindowAny': string;
+    'page.topicWindowDay': string;
+    'page.topicWindowWeek': string;
+    'page.topicWindowMonth': string;
+    'page.topicWindowYear': string;
     'page.searchAction': string;
     'page.searchTabs': string;
     'page.closeSearch': string;

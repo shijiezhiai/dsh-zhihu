@@ -38,6 +38,14 @@
   gap: 8px;
 }
 
+/* The keyword lane's two order menus, on their own row so a narrow panel keeps the box usable. */
+.orderBar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+}
+
 /* The searches the reader keeps open, one tab each, so a later search sits beside the earlier ones. */
 .searchTabs {
   display: flex;

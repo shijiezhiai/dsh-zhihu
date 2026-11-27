@@ -2,6 +2,12 @@
 
 Every tag publishes the prebuilt tarball the plugin-market entry installs, at `https://github.com/shijiezhiai/dsh-zhihu/releases/download/v<version>/dsh-zhihu.tgz`; the asset name stays `dsh-zhihu.tgz`, so a version is identified by its URL.
 
+## 1.17.0
+
+### Added
+
+- The keyword lane takes an order — Zhihu's own relevance, newest first, or most upvoted — and a time window of the past day, week, month or year, both picked from two menus under the keyword box and kept with the rest of the page. A lane on an order other than relevance, or on any window, is answered by reading several pages of Zhihu's search and keeping one slice, so it ends at that slice instead of offering more; an entry dated outside the window, or carrying no date, is left out. The Remote rejects an order or window the lane does not offer.
+
 ## 1.16.0
 
 ### Added

@@ -8,7 +8,7 @@
  */
 import { type EngineStoreHandle } from '@deepseek-ai/dsh-client-store';
 import type { SessionId } from '@deepseek-ai/dsh-session/types';
-import type { ZhihuFeedRow, ZhihuSyncMove, ZhihuSyncState } from '@deepseek-ai/dsh-zhihu-plugin/types';
+import type { ZhihuFeedRow, ZhihuFeedSort, ZhihuFeedTimeWindow, ZhihuSyncMove, ZhihuSyncState } from '@deepseek-ai/dsh-zhihu-plugin/types';
 import type { ZhihuQuoteSource } from './zhihu-quote.ts';
 /** The lanes the page pages through the feed Remote. */
 export type ZhihuFeedTab = 'recommend' | 'hot' | 'follow' | 'topic';
@@ -84,6 +84,17 @@ export interface ZhihuPageState {
      */
     topic?: string;
     /**
+     * Order the topic lane lists its rows in.
+     * A state persisted before the topic lane could be ordered restores without the field, so readers
+     * default it to Zhihu's relevance order.
+     */
+    topicSort?: ZhihuFeedSort;
+    /**
+     * How far back the topic lane reaches; absent keeps entries of every age.
+     * A state persisted before the topic lane could be windowed restores without the field.
+     */
+    topicWindow?: ZhihuFeedTimeWindow;
+    /**
      * The loaded content of each feed lane. A state persisted before topic lanes existed restores
      * without one, so readers go through {@link zhihuLane}.
      */
@@ -154,6 +165,13 @@ export type ZhihuPageActions = {
      * @param topic - the text the topic input now shows.
      */
     topicTyped(draft: ZhihuPageState, topic: string): void;
+    /**
+     * Record the order and the time window the reader picked for the topic lane.
+     * @param draft - the current state.
+     * @param sort - the order its rows are listed in.
+     * @param timeWindow - how far back the lane reaches; undefined keeps every age.
+     */
+    topicOrdered(draft: ZhihuPageState, sort: ZhihuFeedSort, timeWindow: ZhihuFeedTimeWindow | undefined): void;
     /**
      * Open a search tab, or the one a repeated query already named, and show it.
      * @param draft - the current state.

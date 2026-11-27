@@ -40,7 +40,8 @@ export declare class ZhihuHttpProvider implements ZhihuProvider {
      * List one feed page. The hot list is a single response; the recommendation and follow feeds
      * carry a continuation URL, so they are followed until `request.limit` is met or
      * `maxFeedPages` is spent.
-     * @param request - the feed kind, an optional item limit, and an optional continuation token.
+     * @param request - the feed kind, an optional item limit, an optional continuation token, and for
+     *   a `topic` feed the order and time window its entries must satisfy.
      * @param signal - cancellation of the call.
      * @returns the page with promo entries dropped.
      */

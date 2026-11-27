@@ -10,6 +10,8 @@ import { defineStore, type EngineStoreHandle } from '@deepseek-ai/dsh-client-sto
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type {
   ZhihuFeedRow,
+  ZhihuFeedSort,
+  ZhihuFeedTimeWindow,
   ZhihuSyncDiscussion,
   ZhihuSyncMove,
   ZhihuSyncState,
@@ -145,6 +147,17 @@ export interface ZhihuPageState {
    */
   topic?: string
   /**
+   * Order the topic lane lists its rows in.
+   * A state persisted before the topic lane could be ordered restores without the field, so readers
+   * default it to Zhihu's relevance order.
+   */
+  topicSort?: ZhihuFeedSort
+  /**
+   * How far back the topic lane reaches; absent keeps entries of every age.
+   * A state persisted before the topic lane could be windowed restores without the field.
+   */
+  topicWindow?: ZhihuFeedTimeWindow
+  /**
    * The loaded content of each feed lane. A state persisted before topic lanes existed restores
    * without one, so readers go through {@link zhihuLane}.
    */
@@ -216,6 +229,13 @@ export type ZhihuPageActions = {
    * @param topic - the text the topic input now shows.
    */
   topicTyped(draft: ZhihuPageState, topic: string): void
+  /**
+   * Record the order and the time window the reader picked for the topic lane.
+   * @param draft - the current state.
+   * @param sort - the order its rows are listed in.
+   * @param timeWindow - how far back the lane reaches; undefined keeps every age.
+   */
+  topicOrdered(draft: ZhihuPageState, sort: ZhihuFeedSort, timeWindow: ZhihuFeedTimeWindow | undefined): void
   /**
    * Open a search tab, or the one a repeated query already named, and show it.
    * @param draft - the current state.
@@ -420,6 +440,11 @@ export function createZhihuPageStore(): ZhihuPageStore {
       show: (draft, tab) => { draft.tab = tab },
       typed: (draft, query) => { draft.query = query },
       topicTyped: (draft, topic) => { draft.topic = topic },
+      topicOrdered: (draft, sort, timeWindow) => {
+        draft.topicSort = sort
+        if (timeWindow === undefined) delete draft.topicWindow
+        else draft.topicWindow = timeWindow
+      },
       searchOpened: (draft, query) => {
         const trimmed = query.trim()
         if (trimmed === '') return

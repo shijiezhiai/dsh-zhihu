@@ -10,7 +10,8 @@ import type { RemoteFailure } from '@deepseek-ai/dsh-api-remotes/client'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type { PropsLocale, PropsRenderSlots, PropsRuntime, PropsStore } from '@deepseek-ai/dsh-client-ui-slots'
 import type {
-  ZhihuExportDiscussion, ZhihuExportExcerpt, ZhihuFeedRow, ZhihuSyncReadResult,
+  ZhihuExportDiscussion, ZhihuExportExcerpt, ZhihuFeedRow, ZhihuFeedSort, ZhihuFeedTimeWindow,
+  ZhihuSyncReadResult,
 } from '@deepseek-ai/dsh-zhihu-plugin/types'
 import type { ZhihuKey } from './locales.ts'
 import { readableBody } from './zhihu-ask.ts'
@@ -40,7 +41,7 @@ import {
   type ZhihuQuoteSource,
 } from './zhihu-quote.ts'
 import { ZhihuQuoteBox } from './ZhihuQuote.tsx'
-import type { ZhihuPageFace, ZhihuPageOutcome } from './zhihu-page-face.ts'
+import type { ZhihuFeedLane, ZhihuPageFace, ZhihuPageOutcome } from './zhihu-page-face.ts'
 import {
   readSyncMarker,
   SYNC_PUSH_DELAY,
@@ -76,6 +77,48 @@ const LANES: readonly PageTab[] = ['recommend', 'hot', 'follow', 'topic', 'searc
 
 /** The comparison a fresh or pre-comparison state holds. One instance, so the bar's identity is stable. */
 const EMPTY_COMPARISON: readonly ZhihuQuoteSource[] = []
+
+/** The orders the topic lane offers, Zhihu's own relevance order first. */
+const TOPIC_SORTS: readonly ZhihuFeedSort[] = ['relevance', 'newest', 'top']
+
+/** The time windows the topic lane offers; leaving one out keeps every age. */
+const TOPIC_WINDOWS: readonly ZhihuFeedTimeWindow[] = ['day', 'week', 'month', 'year']
+
+/** The menu id that names no window, so the lane reads entries of every age. */
+const ANY_WINDOW = 'any'
+
+/** Copy naming each order the topic lane offers. */
+const TOPIC_SORT_KEYS: Readonly<Record<ZhihuFeedSort, ZhihuKey>> = {
+  relevance: 'page.topicSortRelevance',
+  newest: 'page.topicSortNewest',
+  top: 'page.topicSortTop',
+}
+
+/** Copy naming each time window the topic lane offers. */
+const TOPIC_WINDOW_KEYS: Readonly<Record<ZhihuFeedTimeWindow, ZhihuKey>> = {
+  day: 'page.topicWindowDay',
+  week: 'page.topicWindowWeek',
+  month: 'page.topicWindowMonth',
+  year: 'page.topicWindowYear',
+}
+
+/**
+ * Read one order back from a menu id.
+ * @param id - the id the menu reported.
+ * @returns the order, or undefined when the id names none.
+ */
+function readTopicSort(id: string): ZhihuFeedSort | undefined {
+  return TOPIC_SORTS.find(candidate => candidate === id)
+}
+
+/**
+ * Read one time window back from a menu id.
+ * @param id - the id the menu reported.
+ * @returns the window, or undefined for {@link ANY_WINDOW} and for any id that names none.
+ */
+function readTopicWindow(id: string): ZhihuFeedTimeWindow | undefined {
+  return TOPIC_WINDOWS.find(candidate => candidate === id)
+}
 
 /** Where the context menu opens, in viewport pixels. */
 interface MenuAt {
@@ -173,10 +216,12 @@ function stallLine(seat: ZhihuDiscussionSeat, t: ZhihuTranslate): string {
  * @param active - whether this lane is the one on screen; an inactive lane stays untouched.
  * @param useStore - the page store's read seat.
  * @param actions - the page store's write seat.
- * @param topic - the keyword a `topic` lane reads; absent for every other lane.
+ * @param lane - what a `topic` lane reads; absent for every other lane.
  * @returns the lane's page, whether a continuation is in flight, whether the lane opened with stored rows, and the two requests.
  */
-function useFeedLane(face: ZhihuPageFace, kind: FeedTab, active: boolean, useStore: PageSelector, actions: PageActions, topic?: string): {
+function useFeedLane(
+  face: ZhihuPageFace, kind: FeedTab, active: boolean, useStore: PageSelector, actions: PageActions, lane?: ZhihuFeedLane,
+): {
   readonly page: FeedPage
   readonly appending: boolean
   readonly restored: boolean
@@ -199,9 +244,11 @@ function useFeedLane(face: ZhihuPageFace, kind: FeedTab, active: boolean, useSto
 
   /** The keyword this lane last asked for, so a new one is read once and an unchanged one is not. */
   const wantedTopic = useRef<string | undefined>(undefined)
+  /** The order this lane last asked for, so a changed one is read again. */
+  const wantedOrder = useRef<string | undefined>(undefined)
 
   const request = useCallback((continuation?: string) => {
-    const keyword = kind === 'topic' ? (topic ?? '').trim() : undefined
+    const keyword = kind === 'topic' ? (lane?.topic ?? '').trim() : undefined
     // A topic lane with no keyword has nothing to read and asks for nothing.
     if (keyword === '') {
       setPhase({ status: 'idle' })
@@ -214,8 +261,8 @@ function useFeedLane(face: ZhihuPageFace, kind: FeedTab, active: boolean, useSto
     asked.current = true
     if (continuation === undefined) setPhase({ status: 'loading' })
     else setAppending(true)
-    const answer = kind === 'topic'
-      ? face.feed(kind, continuation, keyword)
+    const answer = kind === 'topic' && keyword !== undefined
+      ? face.feed(kind, continuation, { ...lane, topic: keyword })
       : face.feed(kind, continuation)
     void answer.then((result) => {
       inFlight.current = false
@@ -233,21 +280,33 @@ function useFeedLane(face: ZhihuPageFace, kind: FeedTab, active: boolean, useSto
       else actions.appended(kind, { rows: result.value.rows, cursor: next })
       setPhase({ status: 'ready' })
     })
-  }, [actions, face, kind, topic])
+  }, [actions, face, kind, lane])
 
   useEffect(() => {
     // A topic lane waits for the keyword the reader submits; a lane that names its own feed reads on activation.
     if (active && phase.status === 'idle' && kind !== 'topic') request()
   }, [active, kind, phase.status, request])
 
+  useEffect(() => {
+    if (kind !== 'topic') return
+    // The order is read from the moment the reader changes it, and the first render only records it,
+    // so a lane that opened with stored rows still asks for nothing on its own.
+    const order = `${lane?.sort ?? ''}|${lane?.timeWindow ?? ''}`
+    const first = wantedOrder.current === undefined
+    const changed = wantedOrder.current !== order
+    wantedOrder.current = order
+    if (first || !changed || !active) return
+    request()
+  }, [active, kind, lane?.sort, lane?.timeWindow, request])
+
 
   const reload = useCallback(() => { request() }, [request])
   const loadMore = useCallback(() => {
     if (inFlight.current || phase.status !== 'ready' || cursor === '' || appending) return
     // A continuation belongs to the keyword the rows were read for, not to the one being typed.
-    if (kind === 'topic' && (topic ?? '').trim() !== wantedTopic.current) return
+    if (kind === 'topic' && (lane?.topic ?? '').trim() !== wantedTopic.current) return
     request(cursor)
-  }, [appending, cursor, kind, phase.status, request, topic])
+  }, [appending, cursor, kind, lane?.topic, phase.status, request])
 
   const page = useMemo<FeedPage>(() => {
     if (phase.status === 'failed') return { status: 'failed', rows: [], failure: phase.failure }
@@ -490,6 +549,16 @@ export function ZhihuPage(
   const tab = useStore(state => state.tab)
   const query = useStore(state => state.query)
   const topic = useStore(state => state.topic) ?? ''
+  // A state persisted before the topic lane could be ordered restores without these, so the lane
+  // starts on Zhihu's own relevance order and every age.
+  const topicSort = useStore(state => state.topicSort) ?? 'relevance'
+  const topicWindow = useStore(state => state.topicWindow)
+  /** What the topic lane asks for: the keyword in the box and the order the reader picked. */
+  const topicLane = useMemo<ZhihuFeedLane>(() => ({
+    topic,
+    ...(topicSort === 'relevance' ? {} : { sort: topicSort }),
+    ...(topicWindow === undefined ? {} : { timeWindow: topicWindow }),
+  }), [topic, topicSort, topicWindow])
   const scrollTop = useStore(state => state.scrollTop)
   const savedReading = useStore(state => state.reading)
   /** The fields this page shares with the reader's other machines. */
@@ -503,6 +572,8 @@ export function ZhihuPage(
   )
   /** Whether the reader is looking at their discussions instead of the lanes. */
   const [library, setLibrary] = useState(false)
+  /** Which of the topic lane's two order menus the reader has open. */
+  const [orderMenu, setOrderMenu] = useState<'sort' | 'window' | undefined>(undefined)
   const [notice, setNotice] = useState<string | undefined>(undefined)
   const [menu, setMenu] = useState<MenuAt | undefined>(undefined)
   /**
@@ -544,7 +615,7 @@ export function ZhihuPage(
   const recommended = useFeedLane(face, 'recommend', tab === 'recommend' && opened === null, useStore, actions)
   const hot = useFeedLane(face, 'hot', tab === 'hot' && opened === null, useStore, actions)
   const follow = useFeedLane(face, 'follow', tab === 'follow' && opened === null, useStore, actions)
-  const watched = useFeedLane(face, 'topic', tab === 'topic' && opened === null, useStore, actions, topic)
+  const watched = useFeedLane(face, 'topic', tab === 'topic' && opened === null, useStore, actions, topicLane)
   const search = useSearchLanes(face, useStore, actions)
   const lanes: Readonly<Record<FeedTab, ReturnType<typeof useFeedLane>>> = {
     recommend: recommended,
@@ -1233,21 +1304,75 @@ export function ZhihuPage(
         <Button variant="ghost" size="sm" onClick={() => { setLibrary(true) }}>{t('threads.title')}</Button>
       </div>
       {tab === 'topic' && (
-        <form
-          className={css.searchBar}
-          onSubmit={(event) => {
-            event.preventDefault()
-            watched.reload()
-          }}
-        >
-          <Input
-            value={topic}
-            placeholder={t('page.topicPlaceholder')}
-            aria-label={t('page.topicPlaceholder')}
-            onChange={(event) => { actions.topicTyped(event.target.value) }}
-          />
-          <Button variant="outline" size="sm" type="submit">{t('page.topicAction')}</Button>
-        </form>
+        <>
+          <form
+            className={css.searchBar}
+            onSubmit={(event) => {
+              event.preventDefault()
+              watched.reload()
+            }}
+          >
+            <Input
+              value={topic}
+              placeholder={t('page.topicPlaceholder')}
+              aria-label={t('page.topicPlaceholder')}
+              onChange={(event) => { actions.topicTyped(event.target.value) }}
+            />
+            <Button variant="outline" size="sm" type="submit">{t('page.topicAction')}</Button>
+          </form>
+          <div className={css.orderBar}>
+            <Menu
+              open={orderMenu === 'sort'}
+              onClose={() => { setOrderMenu(undefined) }}
+              items={TOPIC_SORTS.map(id => ({ id, label: t(TOPIC_SORT_KEYS[id]) }))}
+              selectedId={topicSort}
+              onSelect={(id) => {
+                setOrderMenu(undefined)
+                const picked = readTopicSort(id)
+                if (picked !== undefined) actions.topicOrdered(picked, topicWindow)
+              }}
+              portal
+              anchor={(
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  aria-haspopup="menu"
+                  aria-expanded={orderMenu === 'sort'}
+                  aria-label={t('page.topicSort')}
+                  onClick={() => { setOrderMenu(orderMenu === 'sort' ? undefined : 'sort') }}
+                >
+                  {t(TOPIC_SORT_KEYS[topicSort])}
+                </Button>
+              )}
+            />
+            <Menu
+              open={orderMenu === 'window'}
+              onClose={() => { setOrderMenu(undefined) }}
+              items={[
+                { id: ANY_WINDOW, label: t('page.topicWindowAny') },
+                ...TOPIC_WINDOWS.map(id => ({ id, label: t(TOPIC_WINDOW_KEYS[id]) })),
+              ]}
+              selectedId={topicWindow ?? ANY_WINDOW}
+              onSelect={(id) => {
+                setOrderMenu(undefined)
+                actions.topicOrdered(topicSort, readTopicWindow(id))
+              }}
+              portal
+              anchor={(
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  aria-haspopup="menu"
+                  aria-expanded={orderMenu === 'window'}
+                  aria-label={t('page.topicWindow')}
+                  onClick={() => { setOrderMenu(orderMenu === 'window' ? undefined : 'window') }}
+                >
+                  {topicWindow === undefined ? t('page.topicWindowAny') : t(TOPIC_WINDOW_KEYS[topicWindow])}
+                </Button>
+              )}
+            />
+          </div>
+        </>
       )}
       {tab === 'search' && search.tabs.length > 0 && (
         <div className={css.searchTabs} role="tablist" aria-label={t('page.searchTabs')}>

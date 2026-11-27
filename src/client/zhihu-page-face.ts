@@ -12,7 +12,8 @@ import type { RemoteFailure } from '@deepseek-ai/dsh-api-remotes/client'
 import type {} from '@deepseek-ai/dsh-zhihu-plugin/remote'
 import type {
   ZhihuClientSettings, ZhihuCommentsResult, ZhihuExportQuery, ZhihuExportResult, ZhihuFailureTarget,
-  ZhihuFeedQuery, ZhihuFeedResult, ZhihuFeedRow, ZhihuReadItem, ZhihuSearchQuery,
+  ZhihuFeedQuery, ZhihuFeedResult, ZhihuFeedRow, ZhihuFeedSort, ZhihuFeedTimeWindow, ZhihuReadItem,
+  ZhihuSearchQuery,
   ZhihuSyncDocument, ZhihuSyncReadResult, ZhihuSyncSaveResult,
 } from '@deepseek-ai/dsh-zhihu-plugin/types'
 import { RemoteError } from '@deepseek-ai/dsh-typert-protocol'
@@ -31,16 +32,26 @@ export type ZhihuPageOutcome<T> =
   | { readonly ok: true; readonly value: T }
   | { readonly ok: false; readonly failure: RemoteFailure }
 
+/** What a `topic` lane reads: its keyword and, when the reader picked one, an order and a window. */
+export interface ZhihuFeedLane {
+  /** Keyword the lane lists. */
+  readonly topic: string
+  /** Order the rows are listed in; omitted keeps Zhihu's relevance order. */
+  readonly sort?: ZhihuFeedSort
+  /** Keep only rows created within this window; omitted keeps every age. */
+  readonly timeWindow?: ZhihuFeedTimeWindow
+}
+
 /** What the full page calls for its feeds, its search lane, and its opened rows. */
 export interface ZhihuPageFace {
   /**
    * Request one feed page.
    * @param kind - which feed to read.
    * @param cursor - continuation token from the previous page; omitted reads the first page.
-   * @param topic - keyword a `topic` feed lists; ignored by every other kind.
+   * @param lane - what a `topic` lane reads; ignored by every other kind.
    * @returns the rows and the token that continues the feed, or the refusal.
    */
-  feed(kind: ZhihuFeedQuery['kind'], cursor?: string, topic?: string): Promise<ZhihuPageOutcome<ZhihuFeedResult>>
+  feed(kind: ZhihuFeedQuery['kind'], cursor?: string, lane?: ZhihuFeedLane): Promise<ZhihuPageOutcome<ZhihuFeedResult>>
   /**
    * Run one search.
    * @param query - non-empty query text.
@@ -94,6 +105,19 @@ export interface ZhihuPageFace {
 }
 
 /**
+ * Narrow one lane to the wire fields a `topic` read carries.
+ * @param lane - the keyword the reader watches and the order they picked.
+ * @returns the request fields the Host reads.
+ */
+function laneRequest(lane: ZhihuFeedLane): Pick<ZhihuFeedQuery, 'topic' | 'sort' | 'timeWindow'> {
+  return {
+    topic: lane.topic,
+    ...(lane.sort === undefined ? {} : { sort: lane.sort }),
+    ...(lane.timeWindow === undefined ? {} : { timeWindow: lane.timeWindow }),
+  }
+}
+
+/**
  * Build the page face over a lazily resolved namespace.
  * @param resolveRemote - reads the Zhihu Remote namespace, or undefined while the Host does not publish it.
  * @returns the face the page component calls.
@@ -110,13 +134,15 @@ export function zhihuPageFace(resolveRemote: () => ClientRemote['zhihu'] | undef
     }
   }
   return {
-    async feed(kind, cursor, topic) {
+    async feed(kind, cursor, lane) {
       const remote = resolveRemote()
       if (remote === undefined) return unavailable(kind)
-      const keyword = kind !== 'topic' || topic === undefined ? {} : { topic }
-      const request: ZhihuFeedQuery = cursor === undefined
-        ? { kind, limit: PAGE_LIMIT, ...keyword }
-        : { kind, limit: PAGE_LIMIT, cursor, ...keyword }
+      const request: ZhihuFeedQuery = {
+        kind,
+        limit: PAGE_LIMIT,
+        ...(cursor === undefined ? {} : { cursor }),
+        ...(kind !== 'topic' || lane === undefined ? {} : laneRequest(lane)),
+      }
       const result = await remote.feed(request)
       return result.ok ? { ok: true, value: result.value } : { ok: false, failure: result.error }
     },

@@ -38,6 +38,10 @@ declare module '@deepseek-ai/dsh-typert-protocol' {
 export type ZhihuFailureTarget = ZhihuFeedQuery['kind'] | ZhihuReadQuery['kind'] | 'search' | 'comments' | 'state';
 /** Every failure code this Remote raises from a classified seam error. */
 export type ZhihuRemoteFailureCode = 'zhihu/login-required' | 'zhihu/rate-limited' | 'zhihu/blocked' | 'zhihu/not-found' | 'zhihu/bad-response' | 'zhihu/unavailable' | 'zhihu/export-failed';
+/** Order a `topic` feed lists its entries in. */
+export type ZhihuFeedSort = 'relevance' | 'newest' | 'top';
+/** How far back a `topic` feed reaches, measured from the moment of the read. */
+export type ZhihuFeedTimeWindow = 'day' | 'week' | 'month' | 'year';
 /** One feed request; the Host applies its own default and cap to `limit`. */
 export interface ZhihuFeedQuery {
     /**
@@ -51,6 +55,17 @@ export interface ZhihuFeedQuery {
     readonly limit?: number;
     /** Continuation token from a previous page; omitted reads the first page. */
     readonly cursor?: string;
+    /**
+     * Order a `topic` feed lists its entries in; omitted keeps Zhihu's relevance order. An ordered
+     * feed reads several pages into one answer, so it continues none of them and answers no cursor.
+     * Ignored by every other feed.
+     */
+    readonly sort?: ZhihuFeedSort;
+    /**
+     * Keep only a `topic` feed's entries created within this window; omitted keeps every age. Like
+     * {@link ZhihuFeedQuery.sort}, a window answers no cursor. Ignored by every other feed.
+     */
+    readonly timeWindow?: ZhihuFeedTimeWindow;
 }
 /** One feed page; the browser renders `rows` and keeps `cursor` to continue. */
 export interface ZhihuFeedResult {
